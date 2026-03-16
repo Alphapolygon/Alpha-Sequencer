@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<JUCERPROJECT id="bBmkad" name="MiniLAB3 Step Sequencer" projectType="audioplug"
+              useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
+              companyName="Alphapolygon" pluginCharacteristicsValue="pluginIsMidiEffectPlugin,pluginProducesMidiOut,pluginWantsMidiIn"
+              pluginVST3Category="External,Instrument">
+  <MAINGROUP id="txOVfN" name="MiniLAB3 Step Sequencer">
+    <GROUP id="{FC383C5E-2580-0373-9652-C68EC60B6B75}" name="Source">
+      <FILE id="Afz84k" name="PluginProcessor.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor.cpp"/>
+      <FILE id="c9V1r3" name="PluginProcessor.h" compile="0" resource="0"
+            file="Source/PluginProcessor.h"/>
+      <FILE id="zZezrf" name="PluginEditor.cpp" compile="1" resource="0"
+            file="Source/PluginEditor.cpp"/>
+      <FILE id="yx7Wbh" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+    </GROUP>
+    <FILE id="u0I6la" name="MainBackground.png" compile="0" resource="1"
+          file="../MainBackground.png"/>
+    <FILE id="Vn9M10" name="active_track_1.png" compile="0" resource="1"
+          file="../active_track_1.png"/>
+    <FILE id="uityUi" name="active_track_2.png" compile="0" resource="1"
+          file="../active_track_2.png"/>
+    <FILE id="gZSOrP" name="active_track_3.png" compile="0" resource="1"
+          file="../active_track_3.png"/>
+    <FILE id="I8cHSJ" name="active_track_4.png" compile="0" resource="1"
+          file="../active_track_4.png"/>
+    <FILE id="ZNSjr3" name="active_track_5.png" compile="0" resource="1"
+          file="../active_track_5.png"/>
+    <FILE id="RZmWAO" name="active_track_6.png" compile="0" resource="1"
+          file="../active_track_6.png"/>
+    <FILE id="Ll2WCJ" name="active_track_7.png" compile="0" resource="1"
+          file="../active_track_7.png"/>
+    <FILE id="s0O2eu" name="active_track_8.png" compile="0" resource="1"
+          file="../active_track_8.png"/>
+    <FILE id="iiKxS8" name="active_track_9.png" compile="0" resource="1"
+          file="../active_track_9.png"/>
+    <FILE id="AtlBiX" name="active_track_10.png" compile="0" resource="1"
+          file="../active_track_10.png"/>
+    <FILE id="fe0wHp" name="active_track_11.png" compile="0" resource="1"
+          file="../active_track_11.png"/>
+    <FILE id="R3SScZ" name="active_track_12.png" compile="0" resource="1"
+          file="../active_track_12.png"/>
+    <FILE id="MTztU5" name="active_track_13.png" compile="0" resource="1"
+          file="../active_track_13.png"/>
+    <FILE id="s8hsuY" name="active_track_14.png" compile="0" resource="1"
+          file="../active_track_14.png"/>
+    <FILE id="KcqM5q" name="active_track_15.png" compile="0" resource="1"
+          file="../active_track_15.png"/>
+    <FILE id="zU06wy" name="active_track_16.png" compile="0" resource="1"
+          file="../active_track_16.png"/>
+    <FILE id="iLy1pk" name="bg_dark.png" compile="0" resource="1" file="../bg_dark.png"/>
+    <FILE id="cXEJLZ" name="bg_light.png" compile="0" resource="1" file="../bg_light.png"/>
+  </MAINGROUP>
+  <MODULES>
+    <MODULE id="juce_audio_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_audio_devices" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_audio_formats" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_audio_plugin_client" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="0"/>
+    <MODULE id="juce_audio_processors" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_audio_processors_headless" showAllCode="1" useLocalCopy="0"
+            useGlobalPath="0"/>
+    <MODULE id="juce_audio_utils" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_core" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_data_structures" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_events" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_graphics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_gui_basics" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_gui_extra" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+    <MODULE id="juce_midi_ci" showAllCode="1" useLocalCopy="0" useGlobalPath="0"/>
+  </MODULES>
+  <JUCEOPTIONS JUCE_STRICT_REFCOUNTEDPOINTER="1" JUCE_VST3_CAN_REPLACE_VST2="0"/>
+  <EXPORTFORMATS>
+    <VS2026 targetFolder="Builds/VisualStudio2026">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="MiniLAB3 Step Sequencer"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="MiniLAB3 Step Sequencer"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_midi_ci" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_basics" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_core" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_devices" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_events" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_extra" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_gui_basics" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_graphics" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_data_structures" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_utils" path="../../../../../Temp/JUCE/modules"/>
+        <MODULEPATH id="juce_audio_formats" path="../../../../../Temp/JUCE/modules"/>
+      </MODULEPATHS>
+    </VS2026>
+  </EXPORTFORMATS>
+</JUCERPROJECT>
