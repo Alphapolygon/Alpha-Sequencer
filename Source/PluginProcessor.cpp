@@ -37,7 +37,7 @@ MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
     masterVolParam = apvts.getRawParameterValue("master_vol");
     swingParam = apvts.getRawParameterValue("swing");
 
-    const char* names[] = { "Kick", "Snare", "Clap", "Hat Cl", "Hat Op", "Tom L", "Tom M", "Tom H", "Rim", "Shaker", "Cowbell", "Perc 1", "Perc 2", "Conga", "Maracas", "Clave" };
+    const char* names[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16" };
 
     const juce::ScopedLock sl(stateLock);
     for (int i = 0; i < 16; ++i) {

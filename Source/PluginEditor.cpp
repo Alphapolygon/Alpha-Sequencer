@@ -153,9 +153,9 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
 
         if (nudgeKnobStrip.isValid())
         {
-            const int frameW = 30;
-            const int frameH = 30;
-            const int numFrames = 15;
+            const int frameW = 128;
+            const int frameH = 128;
+            const int numFrames = 25;
 
             const int frameIndex = juce::jlimit(
                 0, numFrames - 1,
@@ -233,7 +233,7 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
 
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    g.drawText("PAGE " + juce::String(currentPage + 1), getWidth() - 150, 20, 130, 40, juce::Justification::centredRight);
+    g.drawText("PAGE " + juce::String(currentPage + 1), getWidth() - 150, 60, 130, 40, juce::Justification::centredRight);
 }
 
 void MiniLAB3StepSequencerAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)

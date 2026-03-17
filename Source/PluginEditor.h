@@ -29,7 +29,7 @@ private:
     juce::Image inactiveBgB;
     juce::Image activeKeys[16];
     juce::Image nudgeKnobStrip;
-    int nudgeKnobFrames = 15;
+    int nudgeKnobFrames = 25;
 
 
 
