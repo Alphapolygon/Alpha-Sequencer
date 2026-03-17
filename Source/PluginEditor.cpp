@@ -1,21 +1,19 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-// ==============================================================================
-// LIFECYCLE
-// ==============================================================================
+static juce::String getMidiNoteName(int note) {
+    juce::StringArray notes = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    int octave = (note / 12) - 2;
+    return notes[note % 12] + juce::String(octave);
+}
 
 MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor& p)
     : AudioProcessorEditor(&p), audioProcessor(p)
 {
-    // Load static Photoshop UI background
     backgroundImage = juce::ImageCache::getFromMemory(BinaryData::MainBackground_png, BinaryData::MainBackground_pngSize);
-
-    // Load Grid Assets
     inactiveBgA = juce::ImageCache::getFromMemory(BinaryData::bg_dark_png, BinaryData::bg_dark_pngSize);
     inactiveBgB = juce::ImageCache::getFromMemory(BinaryData::bg_light_png, BinaryData::bg_light_pngSize);
 
-    // Load Unique Track Colors
     activeKeys[0] = juce::ImageCache::getFromMemory(BinaryData::active_track_1_png, BinaryData::active_track_1_pngSize);
     activeKeys[1] = juce::ImageCache::getFromMemory(BinaryData::active_track_2_png, BinaryData::active_track_2_pngSize);
     activeKeys[2] = juce::ImageCache::getFromMemory(BinaryData::active_track_3_png, BinaryData::active_track_3_pngSize);
@@ -34,20 +32,12 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
     activeKeys[15] = juce::ImageCache::getFromMemory(BinaryData::active_track_16_png, BinaryData::active_track_16_pngSize);
 
     setSize(1050, 600);
-    startTimerHz(60); // Repaint at 60 FPS
+    startTimerHz(60);
 }
 
-MiniLAB3StepSequencerAudioProcessorEditor::~MiniLAB3StepSequencerAudioProcessorEditor() {
-    stopTimer();
-}
+MiniLAB3StepSequencerAudioProcessorEditor::~MiniLAB3StepSequencerAudioProcessorEditor() { stopTimer(); }
 
-// ==============================================================================
-// UPDATES & PAINTING
-// ==============================================================================
-
-void MiniLAB3StepSequencerAudioProcessorEditor::timerCallback()
-{
-    // Auto-connect to hardware if unplugged/replugged
+void MiniLAB3StepSequencerAudioProcessorEditor::timerCallback() {
     if (!audioProcessor.isHardwareConnected()) {
         static int connectionRetry = 0;
         if (++connectionRetry >= 30) {
@@ -55,43 +45,26 @@ void MiniLAB3StepSequencerAudioProcessorEditor::timerCallback()
             connectionRetry = 0;
         }
     }
-
-    // Handle the page-change glow animation
-    if (audioProcessor.pageChangedTrigger.exchange(false))
-        pageFlashAlpha = 1.0f;
-
-    if (pageFlashAlpha > 0.0f)
-        pageFlashAlpha *= 0.85f;
-
+    if (audioProcessor.pageChangedTrigger.exchange(false)) pageFlashAlpha = 1.0f;
+    if (pageFlashAlpha > 0.0f) pageFlashAlpha *= 0.85f;
     repaint();
 }
 
 void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // 1. Draw Static Photoshop Background
-    if (backgroundImage.isValid()) {
-        g.drawImageAt(backgroundImage, 0, 0);
-    }
-    else {
-        // Fallback if image is missing
-        g.fillAll(juce::Colour::fromRGB(15, 15, 18));
-    }
+    if (backgroundImage.isValid()) g.drawImageAt(backgroundImage, 0, 0);
+    else g.fillAll(juce::Colour::fromRGB(15, 15, 18));
 
-    // --- State Fetching ---
     const int currentPage = audioProcessor.currentPage.load();
     const int currentInstrument = audioProcessor.currentInstrument.load();
     const int global16thNote = audioProcessor.global16thNote.load();
 
-    // --- Grid Coordinates ---
-    // These coordinates correspond directly to the layout drawn in `MainBackground.png`
     int startX = 136;
     int topY = 124;
+    int gridAreaW = getWidth() - startX - 25;
+    int cellW = gridAreaW / 32;
+    int cellH = (getHeight() - topY - 20) / 16;
 
-    int gridAreaW = getWidth() - startX - 25;       // Total area width for the 32 steps
-    int cellW = gridAreaW / 32;                     // Width of a single cell bounding box
-    int cellH = (getHeight() - topY - 20) / 16;     // Height of a single track row
-
-    // Draw Page Change Flash Overlay
     if (pageFlashAlpha > 0.0f) {
         g.setColour(juce::Colours::white.withAlpha(pageFlashAlpha * 0.12f));
         g.fillRect(startX + (currentPage * 8 * cellW), topY, cellW * 8, cellH * 16);
@@ -99,36 +72,44 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
 
     const juce::ScopedLock sl(audioProcessor.stateLock);
 
-    // Initialization check
-    if (audioProcessor.instrumentNames[0].isEmpty()) {
-        g.setColour(juce::Colours::white);
-        g.drawText("Initializing Sequencer...", getLocalBounds(), juce::Justification::centred);
-        return;
-    }
-
-    // --- Draw the 16 Tracks ---
     for (int t = 0; t < 16; ++t) {
         int y = topY + (t * cellH);
         const int len = juce::jmax(1, audioProcessor.trackLengths[t]);
         const bool isCurrent = (t == currentInstrument);
 
-        // Track Name & Selection Hilight
-        juce::String name = audioProcessor.instrumentNames[t].isNotEmpty() ? audioProcessor.instrumentNames[t] : "Track";
-        g.setColour(isCurrent ? juce::Colours::cyan : juce::Colours::white.withAlpha(0.5f));
-        g.setFont(juce::FontOptions(13.0f, isCurrent ? juce::Font::bold : juce::Font::plain));
-        g.drawFittedText(name, 10, y, 80, cellH, juce::Justification::centredLeft, 1);
+        // Track Name
+        juce::String name = audioProcessor.instrumentNames[t];
+        g.setColour(isCurrent ? juce::Colours::cyan : juce::Colours::white.withAlpha(0.6f));
+        g.setFont(juce::FontOptions(11.0f, isCurrent ? juce::Font::bold : juce::Font::plain));
+        g.drawFittedText(name, 5, y, 55, cellH, juce::Justification::centredLeft, 1);
 
-        // UI 'Clear Track' Hitbox Visualization
-        g.setColour(juce::Colours::red.withAlpha(0.2f));
-        g.fillRoundedRectangle(95, y + 4, 22, cellH - 8, 4.0f);
-        g.setColour(juce::Colours::red.withAlpha(0.7f));
-        g.drawText("X", 95, y, 22, cellH, juce::Justification::centred);
+        // Fetch values safely from APVTS 
+        int trackNote = static_cast<int>(audioProcessor.noteParams[t]->load());
+        bool isMuted = audioProcessor.muteParams[t]->load() > 0.5f;
+        bool isSoloed = audioProcessor.soloParams[t]->load() > 0.5f;
 
-        // --- Draw the 32 Steps ---
+        // MIDI Note Display
+        juce::String noteStr = getMidiNoteName(trackNote);
+        g.setColour(juce::Colours::grey);
+        g.fillRoundedRectangle(60, y + 4, 25, cellH - 8, 3.0f);
+        g.setColour(juce::Colours::white);
+        g.drawFittedText(noteStr, 60, y, 25, cellH, juce::Justification::centred, 1);
+
+        // MUTE Button
+        g.setColour(isMuted ? juce::Colours::orange : juce::Colour::fromRGB(35, 35, 40));
+        g.fillRoundedRectangle(88, y + 4, 18, cellH - 8, 3.0f);
+        g.setColour(isMuted ? juce::Colours::black : juce::Colours::grey);
+        g.drawFittedText("M", 88, y, 18, cellH, juce::Justification::centred, 1);
+
+        // SOLO Button
+        g.setColour(isSoloed ? juce::Colours::yellow : juce::Colour::fromRGB(35, 35, 40));
+        g.fillRoundedRectangle(109, y + 4, 18, cellH - 8, 3.0f);
+        g.setColour(isSoloed ? juce::Colours::black : juce::Colours::grey);
+        g.drawFittedText("S", 109, y, 18, cellH, juce::Justification::centred, 1);
+
+        // GRID
         for (int s = 0; s < 32; ++s) {
             int x = startX + (s * cellW);
-
-            // Center the 24x24 asset squarely inside the dynamically calculated cell
             float assetSize = 24.0f;
             float drawX = x + (cellW - assetSize) / 2.0f;
             float drawY = y + (cellH - assetSize) / 2.0f;
@@ -136,24 +117,16 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
 
             int stepPage = s / 8;
             bool isFocusPage = (stepPage == currentPage);
-
-            // Alternate background images every 8 steps
             juce::Image* bgImage = (stepPage % 2 == 0) ? &inactiveBgA : &inactiveBgB;
 
-            // 1. Inactive Background
             if (s < len && bgImage->isValid()) {
-                // Dim notes slightly if they aren't on the page currently mapped to the hardware pads
-                float bgAlpha = isFocusPage ? 1.0f : 0.6f;
-                g.setOpacity(bgAlpha);
+                g.setOpacity(isFocusPage ? 1.0f : 0.6f);
                 g.drawImage(*bgImage, assetRect);
-                g.setOpacity(1.0f); // Reset for next draw call
+                g.setOpacity(1.0f);
             }
 
-            // 2. Active Note
             if (s < len && audioProcessor.sequencerMatrix[t][s].isActive) {
                 float vel = audioProcessor.sequencerMatrix[t][s].velocity;
-
-                // Math: Notes range from 20% to 100% opacity based on velocity
                 float alpha = isFocusPage ? 1.0f : 0.4f;
                 alpha *= (0.2f + (vel * 0.8f));
 
@@ -164,7 +137,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
                 }
             }
 
-            // 3. Playhead Visual
             if (global16thNote >= 0 && s == (global16thNote % len)) {
                 g.setColour(juce::Colours::white.withAlpha(0.7f));
                 g.drawRect(assetRect, 1.5f);
@@ -172,48 +144,61 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
         }
     }
 
-    // Main UI Page Indicator
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
     g.drawText("PAGE " + juce::String(currentPage + 1), getWidth() - 150, 20, 130, 40, juce::Justification::centredRight);
 }
 
-// ==============================================================================
-// USER INPUT
-// ==============================================================================
-
 void MiniLAB3StepSequencerAudioProcessorEditor::mouseDown(const juce::MouseEvent& e)
 {
-    // --- MATCH THE HARDCODED POSITIONS FROM PAINT() ---
     int startX = 136;
     int topY = 124;
-
     int gridAreaW = getWidth() - startX - 25;
     int cellW = gridAreaW / 32;
     int cellH = (getHeight() - topY - 20) / 16;
 
     const int row = (e.y - topY) / cellH;
 
-    const juce::ScopedLock sl(audioProcessor.stateLock);
+    // Helper to interact with APVTS DAWs
+    auto notifyHostParameterChange = [&](juce::String paramID, float normalizedValue) {
+        if (auto* p = audioProcessor.apvts.getParameter(paramID)) {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost(normalizedValue);
+            p->endChangeGesture();
+        }
+        };
 
-    // X (Clear Track) Button clicked
-    if (e.x > 95 && e.x < 117) {
-        if (row >= 0 && row < 16) {
-            for (int s = 0; s < 32; ++s) {
-                audioProcessor.sequencerMatrix[row][s].isActive = false;
-            }
-            audioProcessor.updateTrackLength(row);
-            audioProcessor.requestLedRefresh();
+    if (row >= 0 && row < 16) {
+        juce::String trkStr = juce::String(row + 1);
+
+        // 1. Change MIDI Note
+        if (e.x >= 60 && e.x <= 85) {
+            int currentNote = static_cast<int>(audioProcessor.noteParams[row]->load());
+            int newNote = e.mods.isRightButtonDown() ? currentNote - 1 : currentNote + 1;
+            if (newNote > 127) newNote = 0;
+            if (newNote < 0) newNote = 127;
+
+            // AudioParameterInt needs the value normalized 0.0 to 1.0
+            notifyHostParameterChange("note_" + trkStr, newNote / 127.0f);
+        }
+        // 2. Mute Button
+        else if (e.x >= 88 && e.x <= 106) {
+            bool currentVal = audioProcessor.muteParams[row]->load() > 0.5f;
+            notifyHostParameterChange("mute_" + trkStr, currentVal ? 0.0f : 1.0f);
+        }
+        // 3. Solo Button
+        else if (e.x >= 109 && e.x <= 127) {
+            bool currentVal = audioProcessor.soloParams[row]->load() > 0.5f;
+            notifyHostParameterChange("solo_" + trkStr, currentVal ? 0.0f : 1.0f);
         }
     }
 
     // Grid clicked
     const int col = (e.x - startX) / cellW;
-    if (col >= 0 && col < 32 && row >= 0 && row < 16) {
-        // Toggle step
+    if (col >= 0 && col < 32 && row >= 0 && row < 16 && e.x >= startX) {
+        const juce::ScopedLock sl(audioProcessor.stateLock);
         audioProcessor.sequencerMatrix[row][col].isActive = !audioProcessor.sequencerMatrix[row][col].isActive;
-        audioProcessor.sequencerMatrix[row][col].velocity = 0.8f; // Reset to default velocity on mouse-click
-
+        audioProcessor.sequencerMatrix[row][col].velocity = 0.8f;
         audioProcessor.updateTrackLength(row);
         audioProcessor.requestLedRefresh();
     }
