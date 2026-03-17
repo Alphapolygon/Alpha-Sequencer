@@ -14,6 +14,26 @@ DAW Sync: Perfect timing with your project BPM via the JUCE framework.
 
 Velocity Sensitive:  Uses pad pressure for step accents and knobs 1 - 8 to tune those values
 
+## 🎹 Hardware Integration
+Intelligent LED Feedback: Pads update in real-time to show active steps, playhead position, and page context using custom Sysex coloring.
+
+OLED Support: Optimized to work with the MiniLab 3 display for clear feedback on current Page and Instrument selection.
+
+Smart Paging: Browse 32-step patterns via 8-pad "banks." If a page is empty, the sequencer intelligently loops back to provide a tighter performance.
+
+Encoder Mapping: * Knob 1 (Main): Instrument Selection.
+
+Encoder (CC 114): Page Navigation.
+
+Knobs 1-8: Per-step velocity editing for the current page.
+
+## 🚀 Advanced MIDI Engine
+Micro-Timing (Nudge): Shift individual tracks by +/- 20ms for a "laid-back" or "rushed" human feel.
+
+Per-Track Length: Each of the 16 tracks can have an independent length (8, 16, 24, or 32 steps) for complex polyrhythms.
+
+Full Automation: Every parameter—including Mute, Solo, Swing, and Nudge—is linked to the DAW's APVTS for total recall and automation.
+
 ## For Developers
 If you want to port this to other models (KeyLab 49/61, etc.) or customize the logic:
 
