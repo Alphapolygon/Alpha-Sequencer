@@ -49,6 +49,8 @@
             file="UI/active_track_16.png"/>
       <FILE id="f2QwAD" name="bg_dark.png" compile="0" resource="1" file="UI/bg_dark.png"/>
       <FILE id="ElVVSe" name="bg_light.png" compile="0" resource="1" file="UI/bg_light.png"/>
+      <FILE id="eGroay" name="nudge_knob_strip.png" compile="0" resource="1"
+            file="UI/nudge_knob_strip.png"/>
       <FILE id="cMhLsg" name="MainBackground.png" compile="0" resource="1"
             file="UI/MainBackground.png"/>
     </GROUP>

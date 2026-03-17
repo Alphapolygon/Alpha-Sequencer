@@ -96,7 +96,7 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
     const int currentInstrument = audioProcessor.currentInstrument.load();
     const int global16thNote = audioProcessor.global16thNote.load();
 
-    const int startX = 170;
+    const int startX = 200;
     const int topY = 124;
     const int gridAreaW = getWidth() - startX - 25;
     const int cellW = gridAreaW / 32;
@@ -191,8 +191,8 @@ void MiniLAB3StepSequencerAudioProcessorEditor::paint(juce::Graphics& g)
         g.setColour(juce::Colours::white.withAlpha(0.8f));
         g.setFont(10.0f);
         g.drawText(juce::String(knobNudgeMs, 1) + "ms",
-            knobBounds.withY(knobBounds.getBottom() - 2.0f).translated(36.0f, -8.0f),
-            juce::Justification::centredLeft,
+            knobBounds.withY(knobBounds.getCentreY() ).translated(30.0f, -15.0f),
+            juce::Justification::centred,
             false);
 
         for (int s = 0; s < 32; ++s) {
