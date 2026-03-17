@@ -1,4 +1,4 @@
-Arturia Pad Sequencer (VST3)
+## 🎹 Arturia Pad Sequencer (VST3)
 Turn your MiniLab 3 / KeyLab Essential pads into a fully functional 16-step sequencer.
 
 Arturia makes great hardware, but they left a gap: the "Lab" series lacks a hardware step sequencer. This VST3 plugin bridges that gap by hijacking the MIDI data from your pads and providing a synced, visual sequencing interface directly integrated with your DAW.
