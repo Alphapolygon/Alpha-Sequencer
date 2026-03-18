@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="bBmkad" name="MiniLAB3 Step Sequencer" projectType="audioplug"
-              useAppConfig="0" addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1"
-              companyName="Alphapolygon" pluginCharacteristicsValue="pluginIsMidiEffectPlugin,pluginProducesMidiOut,pluginWantsMidiIn"
+<JUCERPROJECT id="bBmkad" name="ALPHA Sequencer" projectType="audioplug" useAppConfig="0"
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" companyName="Alphapolygon"
+              pluginCharacteristicsValue="pluginProducesMidiOut,pluginWantsMidiIn"
               pluginVST3Category="External,Instrument">
-  <MAINGROUP id="txOVfN" name="MiniLAB3 Step Sequencer">
+  <MAINGROUP id="txOVfN" name="ALPHA Sequencer">
     <GROUP id="{FC383C5E-2580-0373-9652-C68EC60B6B75}" name="Source">
       <FILE id="Afz84k" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
@@ -15,6 +15,7 @@
       <FILE id="yx7Wbh" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
     </GROUP>
     <GROUP id="{6DC98CE1-D936-C4FC-6B95-40FB02275663}" name="UI">
+      <FILE id="djM6CN" name="index.html" compile="0" resource="1" file="UI/index.html"/>
       <FILE id="McuCxt" name="active_track_1.png" compile="0" resource="1"
             file="UI/active_track_1.png"/>
       <FILE id="PxApuB" name="active_track_2.png" compile="0" resource="1"
