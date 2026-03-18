@@ -42,14 +42,34 @@ Per-Track Length: Each of the 16 tracks can have an independent length (8, 16, 2
 
 Full Automation: Every parameter—including Mute, Solo, Swing, and Nudge—is linked to the DAW's APVTS for total recall and automation.
 
-## For Developers
-If you want to port this to other models (KeyLab 49/61, etc.) or customize the logic:
+## 🛠 Developer API & Integration Guide
+This plugin uses a Decoupled Architecture: the C++ "Engine" handles high-speed MIDI timing and hardware Sysex, while a React/Webview layer handles the User Interface. They communicate via JSON and JUCE Native Functions.
 
-Clone this repo.
-
-Open the .jucer file in JUCE Projucer.
-
-Export to your IDE (Visual Studio / Xcode) and build.
+1. The C++ ↔ UI BridgeThe UI sends the full state of the sequencer to the C++ engine using the updateCPlusPlusState native function.To update the engine from your UI, call:JavaScriptwindow.window.updateCPlusPlusState(JSON.stringify(sequencerState));
+   
+3. Supported JSON SchemaThe engine expects a JSON object with the following structure. If you are porting this to a new UI or adding features, ensure your state matches these arrays:
+   
+   PropertyTypeDescriptionactiveStepsboolean[16][32] Primary toggle for note triggers.
+   
+   velocitiesint[16][32]Range 0–100 (scaled to 0.0–1.0 in C++).
+   
+   probabilitiesint[16][32]0–100% chance of the note firing.gatesint[16][32]0–100% (Note duration relative to step).
+   
+   shiftsint[16][32]0–100 (50 is "on-grid"; <50 is rushed; >50 is lazy).
+   
+   repeatsint[16][32]1–4 (Ratcheting/Sub-steps).
+   
+   trackStatesobject[]Contains mute (bool) and solo (bool) per track.3.
+   
+   Sysex & Hardware LED LogicIf you are porting this to the KeyLab Essential or BeatStep, you only need to modify the updateHardwareLEDs method in PluginProcessor.cpp.
+   
+   The Header: 0xF0 0x00 0x20 0x6B 0x7F 0x42 targets the MiniLab 3 specifically.
+   
+   The Command: 0x02 0x01 0x16 is the Arturia command for "Set Pad Color."Color Handling: The engine uses 7-bit values (0–127) for R, G, and B.4.
+   
+   Build RequirementsFramework: JUCE 7.x or 8.xModule Dependencies: juce_gui_extra (for WebBrowser), juce_audio_utils, juce_midi_ci.Assets:
+   
+   The React build must be placed in the Source/BinaryData folder as index.html for the ResourceProvider to inject it into the VST window.
 
 ## ⚖️ License & Terms
 This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
