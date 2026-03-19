@@ -1,37 +1,19 @@
 #pragma once
+
 #include <JuceHeader.h>
 #include <atomic>
 
-struct ScheduledMidiEvent {
-    double ppqTime = 0.0;
-    juce::MidiMessage message;
-    bool isActive = false;
-};
+#include "PluginProcessorTypes.h"
+#include "PluginProcessorHelpers.h"
 
-struct StepData {
-    bool isActive = false;
-    float velocity = 0.8f;    // 0.0 to 1.0
-    float probability = 1.0f; // 0.0 to 1.0
-    float gate = 0.75f;       // 0.0 to 1.0
-    int repeats = 1;          // 1 to 4
-    float shift = 0.5f;       // 0.0 to 1.0 (0.5 is center)
-    float swing = 0.0f;       // 0.0 to 1.0 additional per-step swing amount
-};
-
-struct PadColor {
-    uint8_t r = 0, g = 0, b = 0;
-    bool operator!=(const PadColor& other) const {
-        return r != other.r || g != other.g || b != other.b;
-    }
-};
-
-class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor, public juce::Timer
+class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor,
+                                            public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessor();
     ~MiniLAB3StepSequencerAudioProcessor() override;
 
-    int getGeneralMidiNote(int t);
+    int getGeneralMidiNote(int trackIndex);
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -46,9 +28,9 @@ public:
     double getTailLengthSeconds() const override { return 0.0; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int index) override {}
-    const juce::String getProgramName(int index) override { return {}; }
-    void changeProgramName(int index, const juce::String& newName) override {}
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
 
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
@@ -66,18 +48,18 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    std::atomic<float>* masterVolParam;
-    std::atomic<float>* swingParam;
-    std::atomic<float>* muteParams[16];
-    std::atomic<float>* soloParams[16];
-    std::atomic<float>* noteParams[16];
-    std::atomic<float>* nudgeParams[16];
+    std::atomic<float>* masterVolParam = nullptr;
+    std::atomic<float>* swingParam = nullptr;
+    std::atomic<float>* muteParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* soloParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* noteParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* nudgeParams[MiniLAB3Seq::kNumTracks] = {};
 
     mutable juce::CriticalSection stateLock;
-    StepData sequencerMatrix[16][32];
-    float lastFiredVelocity[16][32];
-    int trackLengths[16];
-    juce::String instrumentNames[16];
+    StepData sequencerMatrix[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+    float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+    int trackLengths[MiniLAB3Seq::kNumTracks] = {};
+    juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
 
     std::atomic<int> currentInstrument{ 0 };
     std::atomic<int> currentPage{ 0 };
@@ -87,13 +69,11 @@ public:
 
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
-
     std::atomic<uint32_t> uiStateVersion{ 1 };
 
     juce::String fullUiStateJson;
 
-    // JSON Parser for React UI
-    void setStepDataFromJson(const juce::String& jsonStr);
+    void setStepDataFromVar(const juce::var& stateVar);
     juce::var buildCurrentPatternStateVar() const;
     juce::String buildFullUiStateJsonForEditor() const;
     uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
@@ -102,13 +82,12 @@ private:
     std::unique_ptr<juce::MidiOutput> hardwareOutput;
     bool isAttemptingConnection = false;
     std::atomic<int> ledRefreshCountdown{ 0 };
-    PadColor lastPadColor[8];
+    PadColor lastPadColor[MiniLAB3Seq::kPadsPerPage];
 
-    // --- PLAYBACK TRACKING ---
     int lastProcessedStep = -1;
     ScheduledMidiEvent eventQueue[1024];
-    void scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg);
 
+    void scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg);
     void handleMidiInput(const juce::MidiMessage& msg, juce::MidiBuffer& midiMessages);
     void updateHardwareLEDs(bool forceOverwrite);
     uint8_t getHardwarePadId(int softwareIndex);

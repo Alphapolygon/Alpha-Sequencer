@@ -10,6 +10,16 @@
             file="Source/PluginProcessor.cpp"/>
       <FILE id="c9V1r3" name="PluginProcessor.h" compile="0" resource="0"
             file="Source/PluginProcessor.h"/>
+      <FILE id="qA1bHs" name="PluginProcessorTypes.h" compile="0" resource="0"
+            file="Source/PluginProcessorTypes.h"/>
+      <FILE id="mN2cJu" name="PluginProcessorHelpers.h" compile="0" resource="0"
+            file="Source/PluginProcessorHelpers.h"/>
+      <FILE id="uW4eLx" name="PluginProcessor_Hardware.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor_Hardware.cpp"/>
+      <FILE id="yZ5fMy" name="PluginProcessor_Playback.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor_Playback.cpp"/>
+      <FILE id="bC6gNz" name="PluginProcessor_State.cpp" compile="1" resource="0"
+            file="Source/PluginProcessor_State.cpp"/>
       <FILE id="zZezrf" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="yx7Wbh" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>

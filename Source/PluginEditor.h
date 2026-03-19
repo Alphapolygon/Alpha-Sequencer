@@ -1,18 +1,25 @@
 #pragma once
+
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class MiniLAB3StepSequencerAudioProcessorEditor : public juce::AudioProcessorEditor, public juce::Timer
+class MiniLAB3StepSequencerAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                                  public juce::Timer
 {
 public:
-    MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor&);
+    explicit MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor&);
     ~MiniLAB3StepSequencerAudioProcessorEditor() override;
 
-    void paint(juce::Graphics&) override {} // Handled by WebBrowserComponent
+    void paint(juce::Graphics&) override {}
     void resized() override;
     void timerCallback() override;
 
 private:
+    static juce::WebBrowserComponent::Options createWebViewOptions(MiniLAB3StepSequencerAudioProcessor& processor);
+    void initialiseBrowser();
+    void pushPlaybackStateIfChanged();
+    void pushEngineStateIfChanged();
+
     MiniLAB3StepSequencerAudioProcessor& audioProcessor;
     juce::WebBrowserComponent webComponent;
 
