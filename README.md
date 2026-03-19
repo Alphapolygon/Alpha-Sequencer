@@ -1,7 +1,5 @@
-## 🎹 Arturia Pad Sequencer (VST3)
-Turn your MiniLab 3 / KeyLab Essential pads into a fully functional 16-step sequencer.
-
-Arturia makes great hardware, but they left a gap: the "Lab" series lacks a hardware step sequencer. This VST3 plugin bridges that gap by hijacking the MIDI data from your pads and providing a synced, visual sequencing interface directly integrated with your DAW.
+## 🎹 Alpha Sequencer: Arturia MiniLab 3 Edition
+Alpha Sequencer is a professional VST3 step sequencer designed specifically to unlock the hidden production power of the Arturia MiniLab 3. By bridging the gap between Arturia’s high-quality hardware and a modern, browser-based UI, it provides a 16-track, 32-step sequencing environment with features typically reserved for high-end hardware like the BeatStep Pro.
 
 ## ☕ Support the Project
 This plugin was developed to give the MiniLab/KeyLab features that Arturia left out. 
@@ -11,78 +9,72 @@ Found it useful? Buying me a coffee to support further updates (like minilab mk2
 
 [![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/alphapolygon)
 
-## ✨ Features
-8-32-Step Sequencing: Toggle steps using the physical pads on your controller.
-16 tracks, ability to change what note the track sends (C1,d2 etc)
-Each track can have 8 - 32 steps, these are played in sync. Example track 1 can have 16 steps and track 2 8 steps.
+## ✨ Key Features
+## 🚀 Advanced Sequencing Engine (C++)
+16 Tracks & 32 Steps: Full polyphonic sequencing with independent track lengths for complex polyrhythms.
 
-LED Feedback: Pads light up to show active steps and the current playhead.
+Stochastic Tools: Per-step Probability (0-100%) and Ratcheting/Repeats (1-4) for modern production styles.
 
-DAW Sync: Perfect timing with your project BPM via the JUCE framework.
+Human Feel: High-resolution Micro-Timing (Nudge) and both Global and Per-Step Swing controls.
 
-Velocity Sensitive:  Uses pad pressure for step accents and knobs 1 - 8 to tune those values
+Pattern Matrix: Store and switch between 10 unique patterns (A-J) instantly.
 
-## 🎹 Hardware Integration
-Intelligent LED Feedback: Pads update in real-time to show active steps, playhead position, and page context using custom Sysex coloring.
+## 💻 Modern Hybrid UI (React)
+Hardware-Accelerated Webview: Built with React and Vite, rendered via JUCE WebView2 for a buttery-smooth 30Hz sync with your DAW.
 
-OLED Support: Optimized to work with the MiniLab 3 display for clear feedback on current Page and Instrument selection.
+Automation Lanes: dedicated visual editors for Velocity, Gate, Probability, Shift, and Swing.
 
-Smart Paging: Browse 32-step patterns via 8-pad "banks." If a page is empty, the sequencer intelligently loops back to provide a tighter performance.
+MIDI Export: One-click generation of MIDI files for individual tracks or the entire 16-track pattern directly from the plugin.
 
-Encoder Mapping: * Knob 1 (Main): Instrument Selection.
+Dynamic Themes: Includes Alpha, Cyberpunk, Midnight, Solar, and Forest interface themes.
 
-Encoder (CC 114): Page Navigation.
+## 🛠 Hardware Integration (MiniLab 3)
+Active LED Feedback: Pads sync in real-time to show playhead position, active steps, and page context (Cyan/Magenta/Yellow/White).
 
-Knobs 1-8: Per-step velocity editing for the current page.
+Intelligent Paging: Navigate 32 steps across 8 physical pads using the designated hardware encoder.
 
-## 🚀 Advanced MIDI Engine
-Micro-Timing (Nudge): Shift individual tracks by +/- 20ms for a "laid-back" or "rushed" human feel.
+Knob Mapping: Knobs 1-8 automatically map to velocity editing for the currently visible 8-step page.
 
-Per-Track Length: Each of the 16 tracks can have an independent length (8, 16, 24, or 32 steps) for complex polyrhythms.
+OLED Support: Logic included for updating the MiniLab 3 screen during page and instrument changes.
 
-Full Automation: Every parameter—including Mute, Solo, Swing, and Nudge—is linked to the DAW's APVTS for total recall and automation.
+## 🚀 Installation
+For Users
+Requirement: Windows users must have the WebView2 Runtime installed (standard on most modern Windows 10/11 installs).
 
-## 🛠 Developer API & Integration Guide
-This plugin uses a Decoupled Architecture: the C++ "Engine" handles high-speed MIDI timing and hardware Sysex, while a React/Webview layer handles the User Interface. They communicate via JSON and JUCE Native Functions.
+Download the latest AlphaSequencer.vst3 from [Releases].
 
-1. The C++ ↔ UI BridgeThe UI sends the full state of the sequencer to the C++ engine using the updateCPlusPlusState native function.To update the engine from your UI, call:JavaScriptwindow.window.updateCPlusPlusState(JSON.stringify(sequencerState));
-   
-3. Supported JSON SchemaThe engine expects a JSON object with the following structure. If you are porting this to a new UI or adding features, ensure your state matches these arrays:
-   
-   PropertyTypeDescriptionactiveStepsboolean[16][32] Primary toggle for note triggers.
-   
-   velocitiesint[16][32]Range 0–100 (scaled to 0.0–1.0 in C++).
-   
-   probabilitiesint[16][32]0–100% chance of the note firing.gatesint[16][32]0–100% (Note duration relative to step).
-   
-   shiftsint[16][32]0–100 (50 is "on-grid"; <50 is rushed; >50 is lazy).
-   
-   repeatsint[16][32]1–4 (Ratcheting/Sub-steps).
-   
-   trackStatesobject[]Contains mute (bool) and solo (bool) per track.3.
-   
-   Sysex & Hardware LED LogicIf you are porting this to the KeyLab Essential or BeatStep, you only need to modify the updateHardwareLEDs method in PluginProcessor.cpp.
-   
-   The Header: 0xF0 0x00 0x20 0x6B 0x7F 0x42 targets the MiniLab 3 specifically.
-   
-   The Command: 0x02 0x01 0x16 is the Arturia command for "Set Pad Color."Color Handling: The engine uses 7-bit values (0–127) for R, G, and B.4.
-   
-   Build RequirementsFramework: JUCE 7.x or 8.xModule Dependencies: juce_gui_extra (for WebBrowser), juce_audio_utils, juce_midi_ci.Assets:
-   
-   The React build must be placed in the Source/BinaryData folder as index.html for the ResourceProvider to inject it into the VST window.
+Place in your VST3 folder:
+
+Windows: C:\Program Files\Common Files\VST3
+
+macOS: /Library/Audio/Plug-Ins/VST3
+
+Important: In your DAW, ensure the MiniLab 3 MIDI Output is enabled and not being used by another control surface script for full LED support.
 
 ## ⚖️ License & Terms
 This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
 
-Free for Personal Use: Use it in your music, live sets, and videos for free.
+Non-Commercial: You may not use this material for commercial purposes (selling the plugin or derived code).
 
-Open for Porting: You are encouraged to adapt this code for other Arturia models.
+Porting: You are encouraged to port this to other Arturia models (KeyLab, etc.) provided you share the results under the same license.
 
-Non-Commercial: You cannot sell this plugin, its source code, or any derivative versions.
+Commercial Use: As the original author, I reserve the right to offer official compiled installers or professional support for a fee.
 
-ShareAlike: If you modify or build upon this work, you must distribute your contributions under the same license.
+## 🛠 Developer API (Internal Bridge)
+The plugin uses a JSON-based state bridge. Developers looking to build custom skins or ports can interface with the engine via these native calls:
 
-Note: As the original author, I reserve the right to offer "Official" compiled installers or support packages for a fee to support the ongoing development of this project.
+requestInitialState(): Fetches the full serialized UI and Matrix state.
+
+updateCPlusPlusState(json): Updates the C++ engine with new step, velocity, or timing data.
+
+saveFullUiState(json): Persists non-audio UI settings (themes, tabs) into the VST's state.
+
+## 🛠 Technical Specifications
+Framework: JUCE 7/8 + React 18
+
+Backend: WebView2 (Win) / WKWebView (Mac)
+
+MIDI Buffer: Thread-safe scheduling with CriticalSection locks for jitter-free playback.
 
 
 
