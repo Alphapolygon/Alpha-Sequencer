@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { margin: 0; padding: 0; overflow-x: hidden; transition: background-color 0.5s ease; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #22262c; border-radius: 10px; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+.theme-transition { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.glass-panel { backdrop-filter: blur(10px); }
+
+@keyframes pulse-glow {
+    0% { box-shadow: 0 0 5px var(--accent); }
+    50% { box-shadow: 0 0 20px var(--accent); }
+    100% { box-shadow: 0 0 5px var(--accent); }
+}
+.active-glow { animation: pulse-glow 2s infinite; }
