@@ -25,7 +25,7 @@
       <FILE id="yx7Wbh" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
     </GROUP>
     <GROUP id="{6DC98CE1-D936-C4FC-6B95-40FB02275663}" name="UI">
-      <FILE id="djM6CN" name="index.html" compile="0" resource="1" file="UI/index.html"/>
+      <FILE id="E6VHcB" name="index.html" compile="0" resource="1" file="UI/index.html"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>

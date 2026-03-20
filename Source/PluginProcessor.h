@@ -2,12 +2,13 @@
 
 #include <JuceHeader.h>
 #include <atomic>
+#include <vector>
 
 #include "PluginProcessorTypes.h"
 #include "PluginProcessorHelpers.h"
 
 class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor,
-                                            public juce::Timer
+    public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessor();
@@ -48,6 +49,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
+    // Automation Parameters
     std::atomic<float>* masterVolParam = nullptr;
     std::atomic<float>* swingParam = nullptr;
     std::atomic<float>* muteParams[MiniLAB3Seq::kNumTracks] = {};
@@ -55,8 +57,12 @@ public:
     std::atomic<float>* noteParams[MiniLAB3Seq::kNumTracks] = {};
     std::atomic<float>* nudgeParams[MiniLAB3Seq::kNumTracks] = {};
 
-    mutable juce::CriticalSection stateLock;
-    StepData sequencerMatrix[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+    // Lock-Free Double Buffering State
+    using MatrixSnapshot = StepData[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+    void modifySequencerState(const std::function<void(MatrixSnapshot&)>& modifier);
+    const MatrixSnapshot& getActiveMatrix() const;
+
+    std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     int trackLengths[MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
@@ -77,21 +83,27 @@ public:
     juce::var buildCurrentPatternStateVar() const;
     juce::String buildFullUiStateJsonForEditor() const;
     uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
+    void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
+    void markUiStateDirty() noexcept;
 
 private:
+    mutable juce::CriticalSection writerLock;
+    std::atomic<int> activeMatrixIndex{ 0 };
+    StepData sequencerMatrix[2][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+
     std::unique_ptr<juce::MidiOutput> hardwareOutput;
+    std::unique_ptr<ControllerProfile> activeController;
     bool isAttemptingConnection = false;
     std::atomic<int> ledRefreshCountdown{ 0 };
-    PadColor lastPadColor[MiniLAB3Seq::kPadsPerPage];
 
     int lastProcessedStep = -1;
-    ScheduledMidiEvent eventQueue[1024];
+    static constexpr size_t MaxMidiEvents = 4096;
+    std::vector<ScheduledMidiEvent> eventQueue;
+    std::atomic<int> droppedNotesCount{ 0 };
 
     void scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg);
     void handleMidiInput(const juce::MidiMessage& msg, juce::MidiBuffer& midiMessages);
     void updateHardwareLEDs(bool forceOverwrite);
-    uint8_t getHardwarePadId(int softwareIndex);
-    void markUiStateDirty() noexcept;
     void setParameterFromPlainValue(const juce::String& parameterId, float plainValue);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MiniLAB3StepSequencerAudioProcessor)

@@ -20,34 +20,14 @@ namespace MiniLAB3Seq
         "A", "B", "C", "D", "E", "F", "G", "H", "I", "J"
     };
 
-    inline juce::MidiMessage makeMiniLab3PadColorSysex(uint8_t padIdx, uint8_t r, uint8_t g, uint8_t b)
-    {
-        const uint8_t data[] =
-        {
-            0xF0, 0x00, 0x20, 0x6B, 0x7F, 0x42, 0x02, 0x01, 0x16,
-            padIdx,
-            static_cast<uint8_t>(r & 0x7F),
-            static_cast<uint8_t>(g & 0x7F),
-            static_cast<uint8_t>(b & 0x7F),
-            0xF7
-        };
-
-        return juce::MidiMessage(data, sizeof(data));
-    }
-
     inline int parseMidiNoteName(const juce::String& noteName)
     {
         auto s = noteName.replace("\"", "").replace("'", "").trim().toUpperCase();
-        if (s.isEmpty())
-            return 36;
+        if (s.isEmpty()) return 36;
 
         int octaveIndex = 0;
-        while (octaveIndex < s.length()
-            && !juce::CharacterFunctions::isDigit(s[octaveIndex])
-            && s[octaveIndex] != '-')
-        {
+        while (octaveIndex < s.length() && !juce::CharacterFunctions::isDigit(s[octaveIndex]) && s[octaveIndex] != '-')
             ++octaveIndex;
-        }
 
         const auto namePart = s.substring(0, octaveIndex).trim();
         const auto octavePart = s.substring(octaveIndex).trim();

@@ -20,14 +20,16 @@ struct StepData
     float swing = 0.0f;
 };
 
-struct PadColor
-{
-    uint8_t r = 0;
-    uint8_t g = 0;
-    uint8_t b = 0;
+class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
 
-    bool operator!=(const PadColor& other) const
-    {
-        return r != other.r || g != other.g || b != other.b;
-    }
+class ControllerProfile
+{
+public:
+    virtual ~ControllerProfile() = default;
+
+    virtual juce::String getDeviceNameSubstring() const = 0;
+    virtual void initializeHardware(juce::MidiOutput* out) = 0;
+    virtual void resetHardware(juce::MidiOutput* out) = 0;
+    virtual void updateLEDs(juce::MidiOutput* out, MiniLAB3StepSequencerAudioProcessor& processor, bool forceOverwrite) = 0;
+    virtual bool handleMidiInput(const juce::MidiMessage& msg, MiniLAB3StepSequencerAudioProcessor& processor) = 0;
 };

@@ -7,6 +7,8 @@ void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
 
     for (auto& event : eventQueue)
         event.isActive = false;
+
+    droppedNotesCount.store(0);
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg)
@@ -21,6 +23,10 @@ void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, cons
             return;
         }
     }
+
+    // Safety overflow fallback to prevent memory blowout
+    droppedNotesCount.fetch_add(1, std::memory_order_relaxed);
+    DBG("WARNING: MIDI Event Queue Overflow! Note dropped.");
 }
 
 void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -93,7 +99,9 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 const int firstStep = static_cast<int>(std::floor(ppqStart * 4.0));
                 const int lastStepInBlock = static_cast<int>(std::floor(blockEndPpq * 4.0));
 
-                const juce::ScopedLock lock(stateLock);
+                // Lock-Free state access
+                const auto& readMatrix = getActiveMatrix();
+
                 for (int step = firstStep; step <= lastStepInBlock; ++step)
                 {
                     if (step <= lastProcessedStep)
@@ -105,13 +113,14 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
                     {
                         const bool canPlay = anySolo ? (soloParams[track]->load() > 0.5f)
-                                                     : (muteParams[track]->load() < 0.5f);
+                            : (muteParams[track]->load() < 0.5f);
                         if (!canPlay)
                             continue;
 
                         const int length = juce::jlimit(1, MiniLAB3Seq::kNumSteps, trackLengths[track]);
                         const int wrappedStep = step % length;
-                        const auto& stepData = sequencerMatrix[track][wrappedStep];
+
+                        const auto& stepData = readMatrix[track][wrappedStep];
                         if (!stepData.isActive)
                             continue;
 
@@ -119,7 +128,10 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         if ((juce::Random::getSystemRandom().nextInt(100) / 100.0f) >= probability)
                             continue;
 
+                        // Dynamic MIDI Channel routing
+                        const int channel = juce::jlimit(1, 16, trackMidiChannels[track].load(std::memory_order_relaxed));
                         const int note = static_cast<int>(std::round(noteParams[track]->load()));
+
                         const float velocity = juce::jlimit(0.0f, 1.0f, stepData.velocity * masterVolParam->load());
                         const float gate = juce::jlimit(0.0f, 1.0f, stepData.gate);
                         const int repeats = juce::jlimit(1, 4, stepData.repeats);
@@ -139,8 +151,8 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                             const double onPpq = basePpq + (repeatIndex * repeatIntervalPpq);
                             const double offPpq = onPpq + (repeatIntervalPpq * gate);
 
-                            scheduleMidiEvent(onPpq, juce::MidiMessage::noteOn(1, note, velocity));
-                            scheduleMidiEvent(offPpq, juce::MidiMessage::noteOff(1, note, 0.0f));
+                            scheduleMidiEvent(onPpq, juce::MidiMessage::noteOn(channel, note, velocity));
+                            scheduleMidiEvent(offPpq, juce::MidiMessage::noteOff(channel, note, 0.0f));
                         }
 
                         lastFiredVelocity[track][wrappedStep] = velocity;
@@ -180,7 +192,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
         }
     }
 
-    const juce::ScopedLock lock(stateLock);
+    // Decay the UI velocity tracking (It's okay to do this lock-free here, it's just visual)
     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
     {
         for (int step = 0; step < MiniLAB3Seq::kNumSteps; ++step)
