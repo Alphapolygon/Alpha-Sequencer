@@ -28,11 +28,17 @@ export default function Header({ t, bpm, isPlaying, activeSection, setActiveSect
                         style={{ backgroundColor: activeSection === -1 ? t.accent : 'transparent', color: activeSection === -1 ? '#000' : t.text }}>
                     All
                 </button>
-                {[0,1,2,3].map(i => (
-                    <button key={i} onClick={() => { setActiveSection(i); setCurrentPage(i); syncPatternToEngine(activeP.data, { currentPage: i }); }} 
-                            className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"
-                            style={{ backgroundColor: activeSection === i ? t.accent : 'transparent', color: activeSection === i ? '#000' : t.text }}>
-                        {i*8+1}—{i*8+8}
+                {[0, 1, 2, 3].map(i => (
+                    <button
+                        key={i}
+                        onClick={() => {
+                            setActiveSection(i);
+                            setCurrentPage(i);
+                            syncPatternToEngine({}, { currentPage: i });
+                        }}
+                        className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"
+                        style={{ backgroundColor: activeSection === i ? t.accent : 'transparent', color: activeSection === i ? '#000' : t.text }}>
+                        {i * 8 + 1}—{i * 8 + 8}
                     </button>
                 ))}
             </div>

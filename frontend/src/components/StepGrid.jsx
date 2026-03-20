@@ -74,9 +74,17 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
                 const isNotePlaying = track[currentStep] && isPlaying;
                 const trackColor = t.colors[tIdx % t.colors.length];
                 return (
-                    <div key={tIdx} onClick={() => { setSelectedTrack(tIdx); setOpenNoteMenuTrack(null); syncPatternToEngine(activeP.data, { selectedTrack: tIdx }); }}
-                        className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
-                        style={{ backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.03)' : 'transparent', borderColor: selectedTrack === tIdx ? t.border : 'transparent' }}>
+                    <div key={tIdx}
+						onClick={() => {
+							setSelectedTrack(tIdx);
+							setOpenNoteMenuTrack(null);
+							syncPatternToEngine({}, { selectedTrack: tIdx });
+						}}
+						className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
+						style={{
+							backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.03)' : 'transparent',
+							borderColor: selectedTrack === tIdx ? t.border : 'transparent'
+						}}>
                         <div className="w-52 flex items-center gap-2 pr-2 border-r h-full" style={{ borderColor: t.border }}>
                             <div className={`w-2 h-2 rounded-full transition-all duration-75 ${isNotePlaying ? 'active-glow' : ''}`}
                                 style={{ backgroundColor: isNotePlaying ? trackColor : 'rgba(0,0,0,0.5)', boxShadow: isNotePlaying ? `0 0 10px ${trackColor}` : 'none', '--accent': trackColor }} />

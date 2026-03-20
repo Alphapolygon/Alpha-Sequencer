@@ -12,7 +12,12 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
                 <h3 className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: t.accent }}>Pattern Matrix</h3>
                 <div className="grid grid-cols-5 gap-2">
                     {PATTERN_LABELS.map((label, idx) => (
-                        <button key={label} onClick={() => { setActiveIdx(idx); syncPatternToEngine(patterns[idx].data, { activeIdx: idx }); }}
+                        <button
+                            key={label}
+                            onClick={() => {
+                                setActiveIdx(idx);
+                                syncPatternToEngine({}, { activeIdx: idx });
+                            }}
                             className="aspect-square rounded flex items-center justify-center text-xs font-black transition-all border"
                             style={{ 
                                 backgroundColor: activeIdx === idx ? t.accent : 'rgba(0,0,0,0.4)', 
@@ -51,7 +56,7 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
                                             style={{ color: themeIdx === idx ? theme.accent : t.text, borderColor: t.border }}>
                                         {theme.name}
                                         <div className="flex gap-[2px] h-1.5 w-12 rounded-full overflow-hidden">
-                                            {theme.colors.slice(0,3).map(c => <div key={c} className="flex-1" style={{ backgroundColor: c }} />)}
+                                            {theme.colors.slice(0, 3).map(c => <div key={c} className="flex-1" style={{ backgroundColor: c }} />)}
                                         </div>
                                     </button>
                                 ))}
