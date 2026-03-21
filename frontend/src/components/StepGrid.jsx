@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Icons, MIDI_OPTIONS } from '../utils/constants';
 import { clone2D, hexToRgba, generateMidi } from '../utils/helpers';
+import { usePlaybackStep } from '../hooks/useJuceBridge';
 
 const CustomNoteDropdown = ({ value, options, onChange, theme, trackColor, isSelected, isOpen, onToggle, onClose }) => {
     const menuBg = isSelected ? theme.panel : theme.sidebar;
@@ -11,7 +12,7 @@ const CustomNoteDropdown = ({ value, options, onChange, theme, trackColor, isSel
         <div className="w-28 relative" data-note-dropdown="true">
             <button type="button" onClick={(e) => { e.stopPropagation(); onToggle(); }}
                 className="w-full rounded-md pl-2 pr-7 py-1.5 text-[9px] font-black uppercase outline-none border transition-all flex items-center justify-between"
-                style={{ backgroundColor: menuBg, borderColor, color: textColor, boxShadow: isSelected ? `0 0 12px ${hexToRgba(trackColor, 0.16)}` : 'inset 0 0 0 1px rgba(255,255,255,0.02)' }}>
+                style={{ backgroundColor: menuBg, borderColor, color: textColor, boxShadow: isSelected ? `0 0 12px ${hexToRgba(trackColor, 0.16)}` : 'inset 0 0 0 1px rgba(255,255,255,0.05)' }}>
                 <span className="truncate">{value}</span>
                 <span className={`pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} style={{ color: isSelected ? trackColor : theme.accent }}>
                     <Icons.ChevronDown />
@@ -39,9 +40,10 @@ const CustomNoteDropdown = ({ value, options, onChange, theme, trackColor, isSel
     );
 };
 
-export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedTrack, setSelectedTrack, activeSection, bpm, update, syncPatternToEngine }) {
+export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSelectedTrack, activeSection, bpm, update, syncPatternToEngine }) {
     const [openNoteMenuTrack, setOpenNoteMenuTrack] = useState(null);
     const { activeSteps, trackStates, midiKeys } = activeP.data;
+    const currentStep = usePlaybackStep();
 
     return (
         <main className="flex-1 flex flex-col p-2 gap-[1px] overflow-y-auto custom-scrollbar theme-transition" style={{ backgroundColor: t.bg }}>
@@ -60,7 +62,7 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
                                 <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full opacity-40" style={{ backgroundColor: tint }} />
                                 {Array(8).fill(0).map((_, i) => (
                                     <div key={(secIdx * 8) + i} className="flex-1 flex justify-center items-end pb-1">
-                                        <span className="text-[8px] font-mono font-bold" style={{ color: t.text, opacity: currentStep === (secIdx * 8) + i ? 1 : 0.4 }}>{(secIdx * 8) + i + 1}</span>
+                                        <span className="text-[12px] font-mono font-bold" style={{ color: t.text, opacity: currentStep === (secIdx * 8) + i ? 1 : 0.4 }}>{(secIdx * 8) + i + 1}</span>
                                     </div>
                                 ))}
                             </div>
@@ -78,11 +80,12 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
 						onClick={() => {
 							setSelectedTrack(tIdx);
 							setOpenNoteMenuTrack(null);
-							syncPatternToEngine({}, { selectedTrack: tIdx });
+                            // FIX: Send current pattern data when updating track selections
+							syncPatternToEngine(activeP.data, { selectedTrack: tIdx });
 						}}
 						className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
 						style={{
-							backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.03)' : 'transparent',
+							backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.10)' : 'transparent',
 							borderColor: selectedTrack === tIdx ? t.border : 'transparent'
 						}}>
                         <div className="w-52 flex items-center gap-2 pr-2 border-r h-full" style={{ borderColor: t.border }}>
@@ -107,7 +110,7 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
                                 return (
                                     <button key={ctrl} onClick={(e) => { e.stopPropagation(); const n = [...trackStates]; n[tIdx] = { ...n[tIdx], [type]: !isOn }; update({ trackStates: n }); }}
                                         className="w-6 h-6 rounded-sm text-[9px] font-black border transition-all"
-                                        style={{ backgroundColor: isOn ? color : 'rgba(0,0,0,0.2)', borderColor: isOn ? color : t.border, color: isOn ? '#000' : t.text }}>{ctrl}</button>
+                                        style={{ backgroundColor: isOn ? color : 'rgba(255,255,255,0.10)', borderColor: isOn ? color : t.border, color: isOn ? '#000' : t.text }}>{ctrl}</button>
                                 );
                             })}
                         </div>
@@ -118,7 +121,7 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
                                 const secColor = t.colors[secIdx % t.colors.length];
                                 return (
                                     <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative"
-                                        style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.02)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
+                                        style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                         {Array(8).fill(0).map((_, i) => {
                                             const sIdx = (secIdx * 8) + i;
                                             const isActive = track[sIdx];
@@ -126,7 +129,7 @@ export default function StepGrid({ t, activeP, isPlaying, currentStep, selectedT
                                             return (
                                                 <div key={sIdx} onClick={(e) => { e.stopPropagation(); const n = clone2D(activeSteps); n[tIdx][sIdx] = !n[tIdx][sIdx]; update({ activeSteps: n }); }}
                                                     className="flex-1 rounded-[1px] cursor-pointer transition-all border"
-                                                    style={{ backgroundColor: isActive ? trackColor : 'rgba(0,0,0,0.2)', borderColor: isCurrent ? hexToRgba(t.accent, 0.4) : 'rgba(0,0,0,0.4)', boxShadow: isCurrent ? `inset 0 0 5px ${t.accent}` : 'none', transform: isCurrent ? 'scaleY(1.1)' : 'none' }}>
+                                                    style={{ backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.10)', borderColor: isCurrent ? hexToRgba(t.accent, 0.4) : 'rgba(0,0,0,0.4)', boxShadow: isCurrent ? `inset 0 0 5px ${t.accent}` : 'none', transform: isCurrent ? 'scaleY(1.1)' : 'none' }}>
                                                     {isCurrent && <div className="absolute inset-0 bg-white/5 pointer-events-none" />}
                                                 </div>
                                             );

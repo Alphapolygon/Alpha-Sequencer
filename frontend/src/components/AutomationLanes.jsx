@@ -1,10 +1,12 @@
 import React, { useRef } from 'react';
 import { TAB_TO_KEY } from '../utils/constants';
 import { clone2D, hexToRgba } from '../utils/helpers';
+import { usePlaybackStep } from '../hooks/useJuceBridge';
 
-export default function AutomationLanes({ t, activeP, selectedTrack, currentStep, activeSection, footerTab, setFooterTab, update }) {
+export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, update }) {
     const isDrawing = useRef(false);
     const { activeSteps, repeats } = activeP.data;
+    const currentStep = usePlaybackStep();
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];

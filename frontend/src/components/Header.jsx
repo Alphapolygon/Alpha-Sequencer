@@ -34,7 +34,8 @@ export default function Header({ t, bpm, isPlaying, activeSection, setActiveSect
                         onClick={() => {
                             setActiveSection(i);
                             setCurrentPage(i);
-                            syncPatternToEngine({}, { currentPage: i });
+                            // FIX: Send the current pattern data to safeguard against race conditions
+                            syncPatternToEngine(activeP.data, { currentPage: i });
                         }}
                         className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"
                         style={{ backgroundColor: activeSection === i ? t.accent : 'transparent', color: activeSection === i ? '#000' : t.text }}>

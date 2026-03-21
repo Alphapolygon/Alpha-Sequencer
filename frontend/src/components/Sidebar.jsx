@@ -16,7 +16,8 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
                             key={label}
                             onClick={() => {
                                 setActiveIdx(idx);
-                                syncPatternToEngine({}, { activeIdx: idx });
+                                // FIX: Send the new pattern's data to the C++ backend!
+                                syncPatternToEngine(patterns[idx].data, { activeIdx: idx });
                             }}
                             className="aspect-square rounded flex items-center justify-center text-xs font-black transition-all border"
                             style={{ 

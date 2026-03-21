@@ -10,7 +10,7 @@ export default function App() {
     const bridge = useJuceBridge();
 
     const {
-        patterns, activeIdx, currentStep, isPlaying, bpm, activeSection,
+        patterns, activeIdx, isPlaying, bpm, activeSection,
         currentPage, selectedTrack, footerTab, themeIdx,
         setActiveIdx, setActiveSection, setCurrentPage, setSelectedTrack,
         setFooterTab, setThemeIdx, updateUiAndEngine, syncPatternToEngine,
@@ -42,11 +42,11 @@ export default function App() {
                     activeP={activeP} syncPatternToEngine={syncPatternToEngine} />
 
             <div className="flex-1 flex overflow-hidden">
-                <StepGrid t={t} activeP={activeP} isPlaying={isPlaying} currentStep={currentStep} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} update={updateUiAndEngine} syncPatternToEngine={syncPatternToEngine} />
+                <StepGrid t={t} activeP={activeP} isPlaying={isPlaying} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} update={updateUiAndEngine} syncPatternToEngine={syncPatternToEngine} />
                 <Sidebar t={t} activeIdx={activeIdx} setActiveIdx={setActiveIdx} themeIdx={themeIdx} setThemeIdx={setThemeIdx} activeP={activeP} bpm={bpm} patterns={patterns} syncPatternToEngine={syncPatternToEngine} />
             </div>
 
-            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} currentStep={currentStep} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} update={updateUiAndEngine} />
+            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} update={updateUiAndEngine} />
         </div>
     );
 }

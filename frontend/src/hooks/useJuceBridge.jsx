@@ -24,10 +24,19 @@ const SAVE_RETRY_DELAY_MS = 250;
 
 const wait = (ms) => new Promise(resolve => window.setTimeout(resolve, ms));
 
+export function usePlaybackStep() {
+    const [step, setStep] = useState(-1);
+    useEffect(() => {
+        const handler = e => setStep(e.detail);
+        window.addEventListener('juce-playhead', handler);
+        return () => window.removeEventListener('juce-playhead', handler);
+    }, []);
+    return step;
+}
+
 export function useJuceBridge() {
     const [patterns, setPatterns] = useState(PATTERN_LABELS.map(l => createEmptyPattern(`Pattern ${l}`)));
     const [activeIdx, setActiveIdx] = useState(0);
-    const [currentStep, setCurrentStep] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [bpm, setBpm] = useState(120);
     const [activeSection, setActiveSection] = useState(-1);
@@ -285,7 +294,10 @@ export function useJuceBridge() {
         const handlePlaybackState = (event) => {
             if (event?.bpm) setBpm(Math.round(event.bpm));
             setIsPlaying(!!event?.isPlaying);
-            setCurrentStep((event?.isPlaying && event?.currentStep >= 0) ? event.currentStep : 0);
+            
+            // Dispatch native DOM event instead of triggering a global React render
+            const step = (event?.isPlaying && event?.currentStep >= 0) ? event.currentStep : -1;
+            window.dispatchEvent(new CustomEvent('juce-playhead', { detail: step }));
         };
 
         const listenerHandle = window.__JUCE__.backend.addEventListener('playbackState', handlePlaybackState);
@@ -462,7 +474,6 @@ export function useJuceBridge() {
     return {
         patterns,
         activeIdx,
-        currentStep,
         isPlaying,
         bpm,
         activeSection,
