@@ -35,7 +35,6 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 {
                     juce::MessageManager::callAsync([this, stateVar = args[0]]()
                         {
-                            // FIX: Feed the full React snapshot directly into our native 3D array model!
                             audioProcessor.setStepDataFromVar(stateVar);
                         });
                 }
@@ -115,6 +114,10 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged()
     const int absoluteStep = audioProcessor.global16thNote.load(std::memory_order_acquire);
     const int currentGridStep = (absoluteStep >= 0) ? (absoluteStep % 32) : -1;
 
+    // Fetch the metrics atomically from the backend
+    const int droppedNotes = audioProcessor.droppedNotesCount.load(std::memory_order_relaxed);
+    const int droppedHWMsgs = audioProcessor.droppedHWMsgs.load(std::memory_order_relaxed);
+
     if (currentBpm != lastBpm || isPlaying != lastIsPlaying || currentGridStep != lastStep)
     {
         lastBpm = currentBpm;
@@ -125,6 +128,11 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged()
         stateObj->setProperty("bpm", currentBpm);
         stateObj->setProperty("isPlaying", isPlaying);
         stateObj->setProperty("currentStep", currentGridStep);
+
+        // Pass telemetry exactly as React expects
+        stateObj->setProperty("droppedNotes", droppedNotes);
+        stateObj->setProperty("droppedHWMsgs", droppedHWMsgs);
+
         webComponent.emitEventIfBrowserIsVisible("playbackState", juce::var(stateObj.get()));
     }
 }

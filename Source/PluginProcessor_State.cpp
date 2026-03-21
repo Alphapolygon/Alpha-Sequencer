@@ -26,7 +26,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
     auto* object = parsedVar.getDynamicObject();
     if (object == nullptr) return;
 
-    // Parse Meta State
     if (object->hasProperty("themeIdx")) themeIndex.store(static_cast<int>(object->getProperty("themeIdx")), std::memory_order_release);
     if (object->hasProperty("footerTab")) {
         juce::String ft = object->getProperty("footerTab").toString();
@@ -39,7 +38,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
     if (object->hasProperty("selectedTrack")) currentInstrument.store(juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, static_cast<int>(object->getProperty("selectedTrack"))), std::memory_order_release);
     if (object->hasProperty("currentPage")) currentPage.store(juce::jlimit(0, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("currentPage"))), std::memory_order_release);
 
-    // Parse Matrix State
     modifySequencerState([&](MatrixSnapshot& writeMatrix)
         {
             auto parsePattern = [&](juce::DynamicObject* dataObj, int pIdx)
@@ -74,7 +72,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
                         }
                     }
 
-                    // Note: Mute/Solo/Note are APVTS backed and tracked globally, we can parse them from the active pattern context
                     if (pIdx == activePatternIndex.load(std::memory_order_acquire))
                     {
                         if (dataObj->hasProperty("midiKeys")) {
@@ -113,8 +110,9 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
             }
         });
 
-    for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
-        updateTrackLength(track);
+    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
+        for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
+            updateTrackLength(p, track);
 
     requestLedRefresh();
     markUiStateDirty();
@@ -181,7 +179,6 @@ juce::String MiniLAB3StepSequencerAudioProcessor::buildFullUiStateJsonForEditor(
 
     for (int i = 0; i < MiniLAB3Seq::kNumPatterns; ++i) {
         juce::DynamicObject::Ptr patternObj = new juce::DynamicObject();
-        // Stable UUID populated during processor instantiation
         patternObj->setProperty("id", patternUUIDs[i]);
         patternObj->setProperty("name", "Pattern " + juce::String(MiniLAB3Seq::kPatternLabels[i]));
         patternObj->setProperty("data", buildPatternDataVar(i));
@@ -206,7 +203,6 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
     auto state = apvts.copyState();
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
 
-    // Explicit Schema Versioning
     xml->setAttribute("version", 1);
 
     auto* patternsXml = xml->createNewChildElement("Patterns");
@@ -221,7 +217,7 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
         {
             auto* trackElement = patternXml->createNewChildElement("Track");
             trackElement->setAttribute("name", instrumentNames[track]);
-            trackElement->setAttribute("length", trackLengths[track].load(std::memory_order_acquire));
+            trackElement->setAttribute("length", trackLengths[p][track].load(std::memory_order_acquire));
             trackElement->setAttribute("midiChannel", trackMidiChannels[track].load(std::memory_order_acquire));
 
             juce::String steps, velocities, gates, probabilities, repeats, shifts, swings;
@@ -262,14 +258,40 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         return;
     }
 
-    // Future-proof version check
-    const int stateVersion = xmlState->getIntAttribute("version", 0);
+    int stateVersion = xmlState->getIntAttribute("version", 0);
+
+    // ==========================================
+    // THE MIGRATION PIPELINE
+    // ==========================================
+
+    if (stateVersion == 0)
+    {
+        // Migrate V0 to V1: Wrap the old "Matrix" into a "Patterns" array at index 0
+        if (auto* oldMatrix = xmlState->getChildByName("Matrix")) {
+            auto* patternsXml = xmlState->createNewChildElement("Patterns");
+            auto* pattern0 = patternsXml->createNewChildElement("Pattern");
+            pattern0->setAttribute("index", 0);
+
+            // Move all Track children into the new Pattern 0 node
+            while (auto* track = oldMatrix->getChildByName("Track")) {
+                oldMatrix->removeChildElement(track, false);
+                pattern0->addChildElement(track);
+            }
+            xmlState->removeChildElement(oldMatrix, true);
+        }
+        stateVersion = 1;
+        xmlState->setAttribute("version", 1);
+    }
+
+    // ==========================================
+    // PARSING
+    // ==========================================
 
     if (xmlState->hasTagName(apvts.state.getType())) {
         auto apvtsXml = std::make_unique<juce::XmlElement>(*xmlState);
         for (auto* child = apvtsXml->getFirstChildElement(); child != nullptr;) {
             auto* next = child->getNextElement();
-            if (child->hasTagName("Patterns") || child->hasTagName("Matrix") || child->hasTagName("ReactUIState") || child->hasTagName("UIState"))
+            if (child->hasTagName("Patterns") || child->hasTagName("ReactUIState") || child->hasTagName("UIState"))
                 apvtsXml->removeChildElement(child, true);
             child = next;
         }
@@ -284,8 +306,8 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
                 trackMidiChannels[track].store(trackElement->getIntAttribute("midiChannel", 1), std::memory_order_release);
 
                 const int savedLength = trackElement->getIntAttribute("length", 0);
-                if (savedLength > 0 && pIdx == 0) // Only track length from pattern 0 dictates global length
-                    trackLengths[track].store(juce::jlimit(1, MiniLAB3Seq::kNumSteps, savedLength), std::memory_order_release);
+                if (savedLength > 0)
+                    trackLengths[pIdx][track].store(juce::jlimit(1, MiniLAB3Seq::kNumSteps, savedLength), std::memory_order_release);
 
                 const auto steps = trackElement->getStringAttribute("steps");
                 juce::StringArray vels, gates, probs, reps, shifts, swings;
@@ -319,15 +341,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
                     }
                 }
             }
-            else if (auto* matrixXml = xmlState->getChildByName("Matrix")) {
-                // V0 Migration: Old non-patterned sessions load exclusively into Pattern 0
-                int track = 0;
-                for (auto* trackElement : matrixXml->getChildIterator()) {
-                    if (!trackElement->hasTagName("Track") || track >= MiniLAB3Seq::kNumTracks) continue;
-                    parseTrackXml(trackElement, 0, track);
-                    ++track;
-                }
-            }
         });
 
     if (auto* uiXml = xmlState->getChildByName("UIState")) {
@@ -341,9 +354,11 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         activePatternIndex.store(xmlState->getIntAttribute("activePatternIndex", 0), std::memory_order_release);
     }
 
-    for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track) {
-        if (trackLengths[track].load(std::memory_order_acquire) <= 0)
-            updateTrackLength(track);
+    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p) {
+        for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track) {
+            if (trackLengths[p][track].load(std::memory_order_acquire) <= 0)
+                updateTrackLength(p, track);
+        }
     }
 
     requestLedRefresh();

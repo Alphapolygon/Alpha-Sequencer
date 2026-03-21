@@ -36,10 +36,13 @@ namespace
             const int startStep = page * MiniLAB3Seq::kPadsPerPage;
             const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
             const int current16th = processor.global16thNote.load(std::memory_order_acquire);
-            const int trackLength = processor.trackLengths[instrument].load(std::memory_order_acquire);
-            const int playingStep = (current16th >= 0 && trackLength > 0) ? (current16th % trackLength) : -1;
 
             const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+
+            // FIX: Track length is pulled from the exact active pattern context
+            const int trackLength = processor.trackLengths[pIdx][instrument].load(std::memory_order_acquire);
+            const int playingStep = (current16th >= 0 && trackLength > 0) ? (current16th % trackLength) : -1;
+
             const auto& matrix = processor.getActiveMatrix()[pIdx];
 
             for (int pad = 0; pad < MiniLAB3Seq::kPadsPerPage; ++pad)
@@ -122,9 +125,10 @@ namespace
                 else if (cc == 115 && value == 127)
                 {
                     const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+                    const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+
                     processor.modifySequencerState([&](auto& writeMatrix)
                         {
-                            const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
                             const int page = processor.currentPage.load(std::memory_order_acquire);
                             for (int step = page * MiniLAB3Seq::kPadsPerPage;
                                 step < (page * MiniLAB3Seq::kPadsPerPage) + MiniLAB3Seq::kPadsPerPage;
@@ -133,7 +137,8 @@ namespace
                                 writeMatrix[pIdx][instrument][step].isActive = false;
                             }
                         });
-                    processor.updateTrackLength(instrument);
+
+                    processor.updateTrackLength(pIdx, instrument);
                     return true;
                 }
             }
@@ -143,15 +148,17 @@ namespace
                 if (note >= 36 && note <= 43)
                 {
                     const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+                    const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+
                     processor.modifySequencerState([&](auto& writeMatrix)
                         {
-                            const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
                             const int step = (processor.currentPage.load(std::memory_order_acquire) * MiniLAB3Seq::kPadsPerPage) + (note - 36);
                             writeMatrix[pIdx][instrument][step].isActive = !writeMatrix[pIdx][instrument][step].isActive;
                             if (writeMatrix[pIdx][instrument][step].isActive)
                                 writeMatrix[pIdx][instrument][step].velocity = msg.getFloatVelocity();
                         });
-                    processor.updateTrackLength(instrument);
+
+                    processor.updateTrackLength(pIdx, instrument);
                     return true;
                 }
             }
@@ -185,7 +192,6 @@ namespace
 
 void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
 {
-    // Strict atomic guard against concurrent execution threads
     bool expected = false;
     if (!isAttemptingConnection.compare_exchange_strong(expected, true))
         return;
@@ -199,7 +205,6 @@ void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
         }
     }
 
-    // Explicitly runs on the Message Thread, natively preventing JUCE assertions
     auto devices = juce::MidiOutput::getAvailableDevices();
 
     std::shared_ptr<juce::MidiOutput> newOutput;
@@ -238,13 +243,11 @@ void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
         requestLedRefresh();
     }
 
-    // Always clear the flag once entirely finished
     isAttemptingConnection.store(false, std::memory_order_release);
 }
 
 void MiniLAB3StepSequencerAudioProcessor::resetHardwareState()
 {
-    // Take a rapid local copy of the shared_ptr, then release lock immediately
     std::shared_ptr<juce::MidiOutput> localOutput;
     std::shared_ptr<ControllerProfile> localProfile;
     {
@@ -256,8 +259,6 @@ void MiniLAB3StepSequencerAudioProcessor::resetHardwareState()
     if (localOutput && localProfile)
     {
         localProfile->resetHardware(localOutput.get());
-        // Safe to sleep because lock is already released, 
-        // and shared_ptr keeps the objects alive for us!
         juce::Thread::sleep(30);
     }
 }
@@ -274,7 +275,6 @@ void MiniLAB3StepSequencerAudioProcessor::timerCallback()
     if (initialising.load(std::memory_order_acquire))
         return;
 
-    // 1. Process deferred lock-free Hardware messages on the safe Message Thread
     auto readHandle = hwFifo.read(hwFifo.getNumReady());
     auto processQueue = [&](int start, int size) {
         juce::MidiBuffer dummyBuffer;
@@ -286,7 +286,6 @@ void MiniLAB3StepSequencerAudioProcessor::timerCallback()
     processQueue(readHandle.startIndex1, readHandle.blockSize1);
     processQueue(readHandle.startIndex2, readHandle.blockSize2);
 
-    // 2. Hardware connection logic
     if (hardwareOutput == nullptr)
     {
         static int connectionRetry = 0;
@@ -330,9 +329,8 @@ void MiniLAB3StepSequencerAudioProcessor::handleMidiInput(const juce::MidiMessag
 
     std::shared_ptr<ControllerProfile> localProfile;
     {
-        const juce::SpinLock::ScopedTryLockType lock(hardwareLock);
-        if (lock.isLocked())
-            localProfile = activeController;
+        const juce::SpinLock::ScopedLockType lock(hardwareLock);
+        localProfile = activeController;
     }
 
     if (localProfile)

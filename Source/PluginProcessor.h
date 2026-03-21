@@ -4,7 +4,7 @@
 #include <array>
 #include <atomic>
 #include <vector>
-#include <algorithm> // Added for std::push_heap / pop_heap
+#include <algorithm>
 
 #include "PluginProcessorTypes.h"
 #include "PluginProcessorHelpers.h"
@@ -43,7 +43,7 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    void updateTrackLength(int trackIndex);
+    void updateTrackLength(int patternIndex, int trackIndex);
     void openHardwareOutput();
     void resetHardwareState();
     bool isHardwareConnected() const { return hardwareOutput != nullptr; }
@@ -70,10 +70,9 @@ public:
 
     std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
-    std::atomic<int> trackLengths[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<int> trackLengths[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
 
-    // Stable UUIDs for React sync
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 
     std::atomic<int> currentInstrument{ 0 };
@@ -97,6 +96,9 @@ public:
     void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
     void markUiStateDirty() noexcept;
 
+    std::atomic<int> droppedNotesCount{ 0 };
+    std::atomic<int> droppedHWMsgs{ 0 }; // Added for Hardware FIFO telemetry
+
 private:
     mutable juce::CriticalSection writerLock;
     mutable juce::SpinLock hardwareLock;
@@ -104,7 +106,6 @@ private:
     std::atomic<int> activeMatrixIndex{ 0 };
     StepData sequencerMatrix[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
 
-    // Upgraded to shared_ptr to prevent dangling pointers when locks are quickly released
     std::shared_ptr<juce::MidiOutput> hardwareOutput;
     std::shared_ptr<ControllerProfile> activeController;
 
@@ -114,13 +115,15 @@ private:
     std::atomic<float> pendingSwingNormalized{ -1.0f };
 
     int lastProcessedStep = -1;
-    static constexpr size_t MaxMidiEvents = 4096;
+
+    // Increased capacity to prevent overflow
+    static constexpr size_t MaxMidiEvents = 8192;
     std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{};
     size_t queuedEventCount = 0;
-    std::atomic<int> droppedNotesCount{ 0 };
 
-    juce::AbstractFifo hwFifo{ 1024 };
-    std::array<HardwareMsg, 1024> hwQueue{};
+    // Increased capacity to prevent overflow
+    juce::AbstractFifo hwFifo{ 4096 };
+    std::array<HardwareMsg, 4096> hwQueue{};
 
     juce::Random playbackRandom;
 

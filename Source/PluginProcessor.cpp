@@ -26,10 +26,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout MiniLAB3StepSequencerAudioPr
 MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
     : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
     apvts(*this, nullptr, "PARAMETERS", createParameterLayout()),
-    playbackRandom(0x31337) // Initial deterministic seed
+    playbackRandom(0x31337)
 {
     masterVolParam = apvts.getRawParameterValue("master_vol");
     swingParam = apvts.getRawParameterValue("swing");
+
+    for (int i = 0; i < MiniLAB3Seq::kNumPatterns; ++i)
+        patternUUIDs[i] = juce::Uuid().toString();
 
     modifySequencerState([this](MatrixSnapshot& writeMatrix)
         {
@@ -55,8 +58,9 @@ MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
             }
         });
 
-    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i)
-        updateTrackLength(i);
+    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
+        for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
+            updateTrackLength(p, t);
 
     markUiStateDirty();
     requestLedRefresh();
@@ -96,15 +100,14 @@ int MiniLAB3StepSequencerAudioProcessor::getGeneralMidiNote(int trackIndex)
     return 36 + trackIndex;
 }
 
-void MiniLAB3StepSequencerAudioProcessor::updateTrackLength(int trackIndex)
+void MiniLAB3StepSequencerAudioProcessor::updateTrackLength(int patternIndex, int trackIndex)
 {
     const auto& matrix = getActiveMatrix();
-    const int pIdx = activePatternIndex.load(std::memory_order_acquire);
     int maxActiveStep = -1;
 
     for (int step = MiniLAB3Seq::kNumSteps - 1; step >= 0; --step)
     {
-        if (matrix[pIdx][trackIndex][step].isActive)
+        if (matrix[patternIndex][trackIndex][step].isActive)
         {
             maxActiveStep = step;
             break;
@@ -116,7 +119,7 @@ void MiniLAB3StepSequencerAudioProcessor::updateTrackLength(int trackIndex)
     else if (maxActiveStep >= 16) length = 24;
     else if (maxActiveStep >= 8)  length = 16;
 
-    trackLengths[trackIndex].store(length, std::memory_order_release);
+    trackLengths[patternIndex][trackIndex].store(length, std::memory_order_release);
 }
 
 void MiniLAB3StepSequencerAudioProcessor::markUiStateDirty() noexcept

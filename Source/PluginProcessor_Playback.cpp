@@ -1,7 +1,6 @@
 #include "PluginProcessor.h"
 
 namespace {
-    // Min-Heap comparator: lowest PPQ at the top
     struct EventComparator {
         bool operator()(const ScheduledMidiEvent& a, const ScheduledMidiEvent& b) const {
             return a.ppqTime > b.ppqTime;
@@ -22,6 +21,7 @@ void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
         event = {};
 
     droppedNotesCount.store(0, std::memory_order_release);
+    droppedHWMsgs.store(0, std::memory_order_release); // Reset telemetry
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg)
@@ -32,7 +32,6 @@ void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, cons
         return;
     }
 
-    // O(log N) push onto the heap
     eventQueue[queuedEventCount].ppqTime = ppqTime;
     eventQueue[queuedEventCount].message = msg;
     eventQueue[queuedEventCount].isActive = true;
@@ -71,6 +70,10 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 auto& qMsg = hwQueue[writeHandle.startIndex1];
                 qMsg.len = msg.getRawDataSize();
                 std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
+            }
+            else {
+                // If the FIFO is perfectly full, safely log it for telemetry without blocking
+                droppedHWMsgs.fetch_add(1, std::memory_order_relaxed);
             }
         }
         else
@@ -137,7 +140,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         if (!canPlay)
                             continue;
 
-                        const int length = juce::jlimit(1, MiniLAB3Seq::kNumSteps, trackLengths[track].load(std::memory_order_acquire));
+                        const int length = juce::jlimit(1, MiniLAB3Seq::kNumSteps, trackLengths[pIdx][track].load(std::memory_order_acquire));
                         const int wrappedStep = step % length;
 
                         const auto& stepData = readMatrix[track][wrappedStep];
@@ -179,12 +182,10 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                 const double blockLengthPpq = juce::jmax(1.0e-9, blockEndPpq - ppqStart);
 
-                // O(log N) extraction: pull the earliest events sequentially off the top of the heap
                 while (queuedEventCount > 0)
                 {
                     const auto& event = eventQueue.front();
 
-                    // If the top event is in the future, all remaining events are too. Break.
                     if (event.ppqTime >= blockEndPpq)
                         break;
 
@@ -195,12 +196,11 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         sampleOffset = juce::jlimit(0, juce::jmax(0, numSamples - 1), sampleOffset);
                         midiMessages.addEvent(event.message, sampleOffset);
                     }
-                    else if (event.message.isNoteOff()) // Catch straggler note-offs
+                    else if (event.message.isNoteOff())
                     {
                         midiMessages.addEvent(event.message, 0);
                     }
 
-                    // Pop event off the heap entirely
                     std::pop_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
                     --queuedEventCount;
                 }
