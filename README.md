@@ -1,5 +1,5 @@
 ## 🎹 Alpha Sequencer: Arturia MiniLab 3 Edition
-Alpha Sequencer is a professional VST3 step sequencer designed specifically to unlock the hidden production power of the Arturia MiniLab 3. By bridging the gap between Arturia’s high-quality hardware and a modern, browser-based UI, it provides a 16-track, 32-step sequencing environment with features typically reserved for high-end hardware like the BeatStep Pro.
+Alpha Sequencer is a professional-grade VST3 step sequencer that transforms the Arturia MiniLab 3 into a 16-track production powerhouse. It features a hybrid architecture combining a low-latency C++ MIDI engine with a modern React-based automation interface.
 
 ## ☕ Support the Project
 This plugin was developed to give the MiniLab/KeyLab features that Arturia left out. 
@@ -9,72 +9,67 @@ Found it useful? Buying me a coffee to support further updates (like minilab mk2
 
 [![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/alphapolygon)
 
-## ✨ Key Features
-## 🚀 Advanced Sequencing Engine (C++)
-16 Tracks & 32 Steps: Full polyphonic sequencing with independent track lengths for complex polyrhythms.
+## ✨ Core Features
+## 🚀 High-Performance Engine (C++)
+Double-Buffered State: Implements a MatrixSnapshot system for thread-safe, jitter-free pattern modifications between the UI and audio threads.
 
-Stochastic Tools: Per-step Probability (0-100%) and Ratcheting/Repeats (1-4) for modern production styles.
+10-Pattern Memory: Instant switching between 10 full 16-track patterns (Patterns A–J).
 
-Human Feel: High-resolution Micro-Timing (Nudge) and both Global and Per-Step Swing controls.
+Pro-Grade Parameters: Per-step control for Velocity, Probability (stochastic triggering), Gate (duration), Repeats (1-4x ratcheting), Shift (micro-timing), and Swing.
 
-Pattern Matrix: Store and switch between 10 unique patterns (A-J) instantly.
+Sub-Millisecond Timing: MIDI events are scheduled with sample-accurate precision using a PPQ-based priority heap.
 
-## 💻 Modern Hybrid UI (React)
-Hardware-Accelerated Webview: Built with React and Vite, rendered via JUCE WebView2 for a buttery-smooth 30Hz sync with your DAW.
+Internal Telemetry: Active monitoring of dropped MIDI notes and hardware FIFO overflows to ensure peak performance.
 
-Automation Lanes: dedicated visual editors for Velocity, Gate, Probability, Shift, and Swing.
+## 💻 Modern Web UI (React & Vite)
+Automation Lanes: Drag-to-draw visual editors for all step parameters with 100-point resolution.
 
-MIDI Export: One-click generation of MIDI files for individual tracks or the entire 16-track pattern directly from the plugin.
+Theme Engine: Six high-contrast themes including Alpha, Cyberpunk, Midnight, Solar, Forest, and Monochrome.
 
-Dynamic Themes: Includes Alpha, Cyberpunk, Midnight, Solar, and Forest interface themes.
+MIDI Export: Integrated utility to generate and download .mid files for individual tracks or the entire pattern directly from the plugin window.
 
-## 🛠 Hardware Integration (MiniLab 3)
-Active LED Feedback: Pads sync in real-time to show playhead position, active steps, and page context (Cyan/Magenta/Yellow/White).
+Persistence: State-of-the-art XML persistence with a versioned migration pipeline to keep your patterns safe through updates.
 
-Intelligent Paging: Navigate 32 steps across 8 physical pads using the designated hardware encoder.
+## 🛠 MiniLab 3 Hardware Integration
+Contextual LED Feedback: Pads change color based on the current 8-step page (Cyan, Magenta, Yellow, White).
 
-Knob Mapping: Knobs 1-8 automatically map to velocity editing for the currently visible 8-step page.
+Playhead Tracking: High-speed Sysex updates sync the hardware LEDs to the DAW playhead in real-time.
 
-OLED Support: Logic included for updating the MiniLab 3 screen during page and instrument changes.
+Hardware Navigation: * Encoder (CC 114): Browse through 32-step patterns in 8-step banks.
 
-## 🚀 Installation
+Knob 1 (CC 1): Fast instrument/track selection.
+
+Knobs 1-8: Direct velocity editing for the current page.
+
+## 🚀 Installation & Requirements
 For Users
-Requirement: Windows users must have the WebView2 Runtime installed (standard on most modern Windows 10/11 installs).
+Requirement: Windows users must have the WebView2 Runtime installed.
 
-Download the latest AlphaSequencer.vst3 from [Releases].
-
-Place in your VST3 folder:
+Place AlphaSequencer.vst3 in your system VST3 folder:
 
 Windows: C:\Program Files\Common Files\VST3
 
 macOS: /Library/Audio/Plug-Ins/VST3
 
-Important: In your DAW, ensure the MiniLab 3 MIDI Output is enabled and not being used by another control surface script for full LED support.
+Hardware Setup: Ensure "MiniLab 3 MIDI" is enabled as a MIDI Output in your DAW settings to allow for LED feedback.
 
-## ⚖️ License & Terms
+For Developers
+Framework: JUCE 8 (WebView2/WKWebView backend).
+
+UI Stack: React 18, Tailwind CSS, Vite.
+
+Internal API: The engine communicates via a JSON bridge using updateCPlusPlusState and requestInitialState native functions.
+
+## ⚖️ License
 This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
 
-Non-Commercial: You may not use this material for commercial purposes (selling the plugin or derived code).
+Free for Personal Use: You are free to use this in any musical project.
 
-Porting: You are encouraged to port this to other Arturia models (KeyLab, etc.) provided you share the results under the same license.
+Non-Commercial: You may not sell this plugin or any derivative software.
 
-Commercial Use: As the original author, I reserve the right to offer official compiled installers or professional support for a fee.
+ShareAlike: Any modifications or ports must be distributed under the same license.
 
-## 🛠 Developer API (Internal Bridge)
-The plugin uses a JSON-based state bridge. Developers looking to build custom skins or ports can interface with the engine via these native calls:
-
-requestInitialState(): Fetches the full serialized UI and Matrix state.
-
-updateCPlusPlusState(json): Updates the C++ engine with new step, velocity, or timing data.
-
-saveFullUiState(json): Persists non-audio UI settings (themes, tabs) into the VST's state.
-
-## 🛠 Technical Specifications
-Framework: JUCE 7/8 + React 18
-
-Backend: WebView2 (Win) / WKWebView (Mac)
-
-MIDI Buffer: Thread-safe scheduling with CriticalSection locks for jitter-free playback.
+Note: As the original author, I reserve the right to offer official binaries or professional support for a fee.
 
 
 
