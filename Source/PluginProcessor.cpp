@@ -64,7 +64,10 @@ MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
 
     markUiStateDirty();
     requestLedRefresh();
-    startTimer(250);
+
+    // FIX: 60 FPS timer means no skipped steps on the hardware LEDs and instant knob response!
+    startTimerHz(60);
+
     initialising.store(false, std::memory_order_release);
 }
 
