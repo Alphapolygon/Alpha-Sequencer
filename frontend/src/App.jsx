@@ -34,7 +34,7 @@ export default function App() {
 
     return (
         <div className="flex flex-col w-full h-screen font-sans select-none overflow-hidden theme-transition"
-             style={{ backgroundColor: t.bg, color: t.text }}
+             style={{ backgroundColor: t.bg, color: t.text, '--theme-accent': t.accent }}
              onContextMenu={(e) => e.preventDefault()}>
 
             <Header t={t} bpm={bpm} isPlaying={isPlaying} activeSection={activeSection}
@@ -42,11 +42,11 @@ export default function App() {
                     activeP={activeP} syncPatternToEngine={syncPatternToEngine} />
 
             <div className="flex-1 flex overflow-hidden">
-                <StepGrid t={t} activeP={activeP} isPlaying={isPlaying} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} update={updateUiAndEngine} syncPatternToEngine={syncPatternToEngine} />
+                <StepGrid t={t} activeP={activeP} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} update={updateUiAndEngine} syncPatternToEngine={syncPatternToEngine} />
                 <Sidebar t={t} activeIdx={activeIdx} setActiveIdx={setActiveIdx} themeIdx={themeIdx} setThemeIdx={setThemeIdx} activeP={activeP} bpm={bpm} patterns={patterns} syncPatternToEngine={syncPatternToEngine} />
             </div>
 
-            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} update={updateUiAndEngine} />
+            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} update={updateUiAndEngine} />
         </div>
     );
 }

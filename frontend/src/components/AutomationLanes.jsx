@@ -1,12 +1,32 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { TAB_TO_KEY } from '../utils/constants';
 import { clone2D, hexToRgba } from '../utils/helpers';
-import { usePlaybackStep } from '../hooks/useJuceBridge';
 
 export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, update }) {
     const isDrawing = useRef(false);
     const { activeSteps, repeats } = activeP.data;
-    const currentStep = usePlaybackStep();
+
+    // DIRECT DOM MANIPULATION FOR ZERO-CPU PLAYHEAD
+    useEffect(() => {
+        let lastStep = -1;
+        const handler = (e) => {
+            const step = e.detail;
+            if (lastStep === step) return;
+            
+            if (lastStep >= 0) {
+                document.querySelectorAll(`[data-auto-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+            }
+            if (step >= 0) {
+                document.querySelectorAll(`[data-auto-step="${step}"]`).forEach(el => el.classList.add('playhead-active'));
+            }
+            lastStep = step;
+        };
+        window.addEventListener('juce-playhead', handler);
+        return () => {
+            if (lastStep >= 0) document.querySelectorAll(`[data-auto-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+            window.removeEventListener('juce-playhead', handler);
+        };
+    }, []);
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];
@@ -59,15 +79,13 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                                 style={{ opacity: isDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                 {activeP.data[TAB_TO_KEY[footerTab]][selectedTrack].slice(secIdx * 8, secIdx * 8 + 8).map((v, localIdx) => {
                                     const i = secIdx * 8 + localIdx;
-                                    const isP = currentStep === i;
                                     const isActive = activeSteps[selectedTrack][i];
                                     return (
-                                        <div key={i} className="flex-1 h-full flex flex-col justify-end group cursor-ns-resize transition-opacity relative"
+                                        <div key={i} className="flex-1 h-full flex flex-col justify-end group cursor-ns-resize relative"
                                             onMouseDown={(e) => handleDraw(i, e)} onMouseMove={(e) => handleDraw(i, e)} onContextMenu={(e) => handleDraw(i, e)}>
-                                            <div className="w-full rounded-t-[1px] transition-all relative"
-                                                style={{ height: `${v}%`, backgroundColor: isActive ? t.colors[selectedTrack % t.colors.length] : 'rgba(255,255,255,0.05)', borderTop: isP ? `2px solid #fff` : 'none', boxShadow: isP ? `0 0 15px rgba(255,255,255,0.4)` : 'none' }}>
-                                                {isP && <div className="absolute inset-0 bg-white/20" />}
-                                            </div>
+                                            <div className="w-full rounded-t-[1px] relative auto-cell overflow-hidden"
+                                                data-auto-step={i}
+                                                style={{ height: `${v}%`, backgroundColor: isActive ? t.colors[selectedTrack % t.colors.length] : 'rgba(255,255,255,0.05)', borderTop: 'none', boxShadow: 'none' }} />
                                         </div>
                                     );
                                 })}

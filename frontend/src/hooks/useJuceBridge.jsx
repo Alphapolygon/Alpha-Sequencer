@@ -295,9 +295,10 @@ export function useJuceBridge() {
             if (event?.bpm) setBpm(Math.round(event.bpm));
             setIsPlaying(!!event?.isPlaying);
             
-            // Dispatch native DOM event instead of triggering a global React render
             const step = (event?.isPlaying && event?.currentStep >= 0) ? event.currentStep : -1;
             window.dispatchEvent(new CustomEvent('juce-playhead', { detail: step }));
+            
+            // Optional: You can now access event.droppedNotes and event.droppedHWMsgs here if you want to build a diagnostic UI!
         };
 
         const listenerHandle = window.__JUCE__.backend.addEventListener('playbackState', handlePlaybackState);
@@ -308,23 +309,36 @@ export function useJuceBridge() {
         if (!backendReady || !backendSupportsEvents()) return undefined;
 
         const handleEngineState = (event) => {
-            if (!hasHydrated.current || !event?.patternData) return;
+            if (!hasHydrated.current) return;
 
-            const enginePatternIndex = Number.isInteger(event.activePatternIndex)
-                ? event.activePatternIndex
-                : activeIdx;
+            // FIX: Ingest the new fully-unified 3D Matrix state object from C++
+            if (event?.patterns && Array.isArray(event.patterns)) {
+                setPatterns(event.patterns);
+                
+                if (Number.isInteger(event.activeIdx)) setActiveIdx(event.activeIdx);
+                if (Number.isInteger(event.selectedTrack)) setSelectedTrack(event.selectedTrack);
+                if (Number.isInteger(event.currentPage)) {
+                    setCurrentPage(event.currentPage);
+                    setActiveSection(event.currentPage);
+                }
+                if (Number.isInteger(event.themeIdx)) setThemeIdx(event.themeIdx);
+                if (event.footerTab) setFooterTab(event.footerTab);
+            } 
+            // Fallback for V0 initial loads
+            else if (event?.patternData) {
+                const enginePatternIndex = Number.isInteger(event.activePatternIndex) ? event.activePatternIndex : activeIdx;
+                setPatterns(prev => {
+                    const next = [...prev];
+                    if (!next[enginePatternIndex]) return prev;
+                    next[enginePatternIndex] = { ...next[enginePatternIndex], data: event.patternData };
+                    return next;
+                });
 
-            setPatterns(prev => {
-                const next = [...prev];
-                if (!next[enginePatternIndex]) return prev;
-                next[enginePatternIndex] = { ...next[enginePatternIndex], data: event.patternData };
-                return next;
-            });
-
-            if (Number.isInteger(event.currentInstrument)) setSelectedTrack(event.currentInstrument);
-            if (Number.isInteger(event.currentPage)) {
-                setCurrentPage(event.currentPage);
-                setActiveSection(event.currentPage);
+                if (Number.isInteger(event.currentInstrument)) setSelectedTrack(event.currentInstrument);
+                if (Number.isInteger(event.currentPage)) {
+                    setCurrentPage(event.currentPage);
+                    setActiveSection(event.currentPage);
+                }
             }
         };
 

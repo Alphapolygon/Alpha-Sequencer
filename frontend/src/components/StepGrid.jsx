@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icons, MIDI_OPTIONS } from '../utils/constants';
 import { clone2D, hexToRgba, generateMidi } from '../utils/helpers';
-import { usePlaybackStep } from '../hooks/useJuceBridge';
 
 const CustomNoteDropdown = ({ value, options, onChange, theme, trackColor, isSelected, isOpen, onToggle, onClose }) => {
     const menuBg = isSelected ? theme.panel : theme.sidebar;
@@ -40,10 +39,43 @@ const CustomNoteDropdown = ({ value, options, onChange, theme, trackColor, isSel
     );
 };
 
-export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSelectedTrack, activeSection, bpm, update, syncPatternToEngine }) {
+export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, activeSection, bpm, update, syncPatternToEngine }) {
     const [openNoteMenuTrack, setOpenNoteMenuTrack] = useState(null);
     const { activeSteps, trackStates, midiKeys } = activeP.data;
-    const currentStep = usePlaybackStep();
+
+    // DIRECT DOM MANIPULATION FOR ZERO-CPU PLAYHEAD
+    useEffect(() => {
+        let lastStep = -1;
+        const handler = (e) => {
+            const step = e.detail;
+            if (lastStep === step) return;
+            
+            if (lastStep >= 0) {
+                document.querySelectorAll(`[data-step="${lastStep}"]`).forEach(el => {
+                    el.classList.remove('playhead-active');
+                    if (el.dataset.active === 'true') {
+                        const dot = document.querySelector(`[data-track-dot="${el.dataset.track}"]`);
+                        if (dot) dot.classList.remove('dot-playing');
+                    }
+                });
+            }
+            if (step >= 0) {
+                document.querySelectorAll(`[data-step="${step}"]`).forEach(el => {
+                    el.classList.add('playhead-active');
+                    if (el.dataset.active === 'true') {
+                        const dot = document.querySelector(`[data-track-dot="${el.dataset.track}"]`);
+                        if (dot) dot.classList.add('dot-playing');
+                    }
+                });
+            }
+            lastStep = step;
+        };
+        window.addEventListener('juce-playhead', handler);
+        return () => {
+            if (lastStep >= 0) document.querySelectorAll(`[data-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+            window.removeEventListener('juce-playhead', handler);
+        };
+    }, []);
 
     return (
         <main className="flex-1 flex flex-col p-2 gap-[1px] overflow-y-auto custom-scrollbar theme-transition" style={{ backgroundColor: t.bg }}>
@@ -62,7 +94,7 @@ export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSele
                                 <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full opacity-40" style={{ backgroundColor: tint }} />
                                 {Array(8).fill(0).map((_, i) => (
                                     <div key={(secIdx * 8) + i} className="flex-1 flex justify-center items-end pb-1">
-                                        <span className="text-[12px] font-mono font-bold" style={{ color: t.text, opacity: currentStep === (secIdx * 8) + i ? 1 : 0.4 }}>{(secIdx * 8) + i + 1}</span>
+                                        <span className="text-[12px] font-mono font-bold step-label" data-step={(secIdx * 8) + i} style={{ color: t.text, opacity: 0.4 }}>{(secIdx * 8) + i + 1}</span>
                                     </div>
                                 ))}
                             </div>
@@ -73,34 +105,21 @@ export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSele
 
             {/* TRACK ROWS */}
             {activeSteps.map((track, tIdx) => {
-                const isNotePlaying = track[currentStep] && isPlaying;
                 const trackColor = t.colors[tIdx % t.colors.length];
                 return (
                     <div key={tIdx}
-						onClick={() => {
-							setSelectedTrack(tIdx);
-							setOpenNoteMenuTrack(null);
-                            // FIX: Send current pattern data when updating track selections
-							syncPatternToEngine(activeP.data, { selectedTrack: tIdx });
-						}}
-						className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
-						style={{
-							backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.10)' : 'transparent',
-							borderColor: selectedTrack === tIdx ? t.border : 'transparent'
-						}}>
+                        onClick={() => { setSelectedTrack(tIdx); setOpenNoteMenuTrack(null); syncPatternToEngine(activeP.data, { selectedTrack: tIdx }); }}
+                        className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
+                        style={{ backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.10)' : 'transparent', borderColor: selectedTrack === tIdx ? t.border : 'transparent' }}>
                         <div className="w-52 flex items-center gap-2 pr-2 border-r h-full" style={{ borderColor: t.border }}>
-                            <div className={`w-2 h-2 rounded-full transition-all duration-75 ${isNotePlaying ? 'active-glow' : ''}`}
-                                style={{ backgroundColor: isNotePlaying ? trackColor : 'rgba(0,0,0,0.5)', boxShadow: isNotePlaying ? `0 0 10px ${trackColor}` : 'none', '--accent': trackColor }} />
+                            <div data-track-dot={tIdx} className="w-2 h-2 rounded-full track-dot" style={{ '--accent': trackColor }} />
                             <span className="text-[10px] font-mono font-bold opacity-30 w-4">{String(tIdx + 1).padStart(2, '0')}</span>
                             <span className="text-[10px] font-black uppercase tracking-tight flex-1 truncate" style={{ color: selectedTrack === tIdx ? '#fff' : t.text }}>Track {tIdx + 1}</span>
-                            <button onClick={(e) => { e.stopPropagation(); const n = clone2D(activeSteps); n[tIdx].fill(false); update({ activeSteps: n }); }}
-                                className="p-1 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" style={{ borderColor: t.border, color: t.text }}>CLR</button>
+                            <button onClick={(e) => { e.stopPropagation(); const n = clone2D(activeSteps); n[tIdx].fill(false); update({ activeSteps: n }); }} className="p-1 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" style={{ borderColor: t.border, color: t.text }}>CLR</button>
                             <button onClick={(e) => { e.stopPropagation(); generateMidi(activeP.data, bpm, tIdx); }} className="p-1.5 opacity-30 hover:opacity-100"><Icons.Download /></button>
                         </div>
                         
-                        <CustomNoteDropdown value={midiKeys[tIdx]} options={MIDI_OPTIONS} theme={t} trackColor={trackColor} isSelected={selectedTrack === tIdx}
-                            isOpen={openNoteMenuTrack === tIdx} onToggle={() => setOpenNoteMenuTrack(prev => prev === tIdx ? null : tIdx)} onClose={() => setOpenNoteMenuTrack(null)}
-                            onChange={(note) => { const next = [...midiKeys]; next[tIdx] = note; update({ midiKeys: next }); }} />
+                        <CustomNoteDropdown value={midiKeys[tIdx]} options={MIDI_OPTIONS} theme={t} trackColor={trackColor} isSelected={selectedTrack === tIdx} isOpen={openNoteMenuTrack === tIdx} onToggle={() => setOpenNoteMenuTrack(prev => prev === tIdx ? null : tIdx)} onClose={() => setOpenNoteMenuTrack(null)} onChange={(note) => { const next = [...midiKeys]; next[tIdx] = note; update({ midiKeys: next }); }} />
 
                         <div className="flex gap-0.5">
                             {['M', 'S'].map(ctrl => {
@@ -108,9 +127,7 @@ export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSele
                                 const isOn = trackStates[tIdx][type];
                                 const color = type === 'mute' ? '#ef4444' : '#fbbf24';
                                 return (
-                                    <button key={ctrl} onClick={(e) => { e.stopPropagation(); const n = [...trackStates]; n[tIdx] = { ...n[tIdx], [type]: !isOn }; update({ trackStates: n }); }}
-                                        className="w-6 h-6 rounded-sm text-[9px] font-black border transition-all"
-                                        style={{ backgroundColor: isOn ? color : 'rgba(255,255,255,0.10)', borderColor: isOn ? color : t.border, color: isOn ? '#000' : t.text }}>{ctrl}</button>
+                                    <button key={ctrl} onClick={(e) => { e.stopPropagation(); const n = [...trackStates]; n[tIdx] = { ...n[tIdx], [type]: !isOn }; update({ trackStates: n }); }} className="w-6 h-6 rounded-sm text-[9px] font-black border transition-all" style={{ backgroundColor: isOn ? color : 'rgba(255,255,255,0.10)', borderColor: isOn ? color : t.border, color: isOn ? '#000' : t.text }}>{ctrl}</button>
                                 );
                             })}
                         </div>
@@ -120,18 +137,15 @@ export default function StepGrid({ t, activeP, isPlaying, selectedTrack, setSele
                                 const isSecDimmed = activeSection !== -1 && activeSection !== secIdx;
                                 const secColor = t.colors[secIdx % t.colors.length];
                                 return (
-                                    <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative"
-                                        style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
+                                    <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative" style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                         {Array(8).fill(0).map((_, i) => {
                                             const sIdx = (secIdx * 8) + i;
                                             const isActive = track[sIdx];
-                                            const isCurrent = currentStep === sIdx;
                                             return (
                                                 <div key={sIdx} onClick={(e) => { e.stopPropagation(); const n = clone2D(activeSteps); n[tIdx][sIdx] = !n[tIdx][sIdx]; update({ activeSteps: n }); }}
-                                                    className="flex-1 rounded-[1px] cursor-pointer transition-all border"
-                                                    style={{ backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.10)', borderColor: isCurrent ? hexToRgba(t.accent, 0.4) : 'rgba(0,0,0,0.4)', boxShadow: isCurrent ? `inset 0 0 5px ${t.accent}` : 'none', transform: isCurrent ? 'scaleY(1.1)' : 'none' }}>
-                                                    {isCurrent && <div className="absolute inset-0 bg-white/5 pointer-events-none" />}
-                                                </div>
+                                                    className="flex-1 rounded-[1px] cursor-pointer border step-cell relative overflow-hidden"
+                                                    data-step={sIdx} data-track={tIdx} data-active={isActive ? 'true' : 'false'}
+                                                    style={{ backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.10)', borderColor: 'rgba(0,0,0,0.4)' }} />
                                             );
                                         })}
                                     </div>
