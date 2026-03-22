@@ -11,35 +11,39 @@ Found it useful? Buying me a coffee to support further updates (like minilab mk2
 
 ## ✨ Core Features
 ## 🚀 High-Performance Engine (C++)
-Double-Buffered State: Implements a MatrixSnapshot system for thread-safe, jitter-free pattern modifications between the UI and audio threads.
+Double-Buffered State: Utilizes a MatrixSnapshot system and writerLock for thread-safe, jitter-free pattern modifications between the UI and audio threads.
+
+60Hz Hardware Timer: Ensures sub-millisecond response for hardware LEDs and knob interactions.
 
 10-Pattern Memory: Instant switching between 10 full 16-track patterns (Patterns A–J).
 
-Pro-Grade Parameters: Per-step control for Velocity, Probability (stochastic triggering), Gate (duration), Repeats (1-4x ratcheting), Shift (micro-timing), and Swing.
+Advanced Sequencing: Per-step control for Velocity, Probability (stochastic triggering), Gate (duration), Repeats (1-4x ratcheting), Shift (micro-timing), and Swing.
 
-Sub-Millisecond Timing: MIDI events are scheduled with sample-accurate precision using a PPQ-based priority heap.
+Telemetry Monitoring: Real-time tracking of dropped MIDI notes and hardware FIFO overflows for diagnostic transparency.
 
-Internal Telemetry: Active monitoring of dropped MIDI notes and hardware FIFO overflows to ensure peak performance.
+## 💻 Modern Web UI (React 18 & Vite)
+Automation Lanes: Drag-to-draw visual editors for all parameters with 100-point resolution.
 
-## 💻 Modern Web UI (React & Vite)
-Automation Lanes: Drag-to-draw visual editors for all step parameters with 100-point resolution.
+Zero-CPU Playhead: Implements direct DOM manipulation for playhead tracking, bypassing React's render cycle for extreme UI efficiency.
 
 Theme Engine: Six high-contrast themes including Alpha, Cyberpunk, Midnight, Solar, Forest, and Monochrome.
 
-MIDI Export: Integrated utility to generate and download .mid files for individual tracks or the entire pattern directly from the plugin window.
+MIDI Export: Integrated utility to generate and download .mid files for individual tracks or the entire 16-track pattern.
 
-Persistence: State-of-the-art XML persistence with a versioned migration pipeline to keep your patterns safe through updates.
+Persistence: State-of-the-art XML persistence with a versioned migration pipeline to protect your patterns during updates.
 
 ## 🛠 MiniLab 3 Hardware Integration
 Contextual LED Feedback: Pads change color based on the current 8-step page (Cyan, Magenta, Yellow, White).
 
-Playhead Tracking: High-speed Sysex updates sync the hardware LEDs to the DAW playhead in real-time.
+Sysex Color Engine: High-speed Sysex updates sync hardware LEDs to the DAW playhead in real-time.
 
-Hardware Navigation: * Encoder (CC 114): Browse through 32-step patterns in 8-step banks.
+Hardware Mappings:
+
+Encoder (CC 114): Browse through 32-step patterns in 8-step banks.
 
 Knob 1 (CC 1): Fast instrument/track selection.
 
-Knobs 1-8: Direct velocity editing for the current page.
+Knobs 1-8: Direct velocity editing for the current 8-step page.
 
 ## 🚀 Installation & Requirements
 For Users
@@ -53,13 +57,6 @@ macOS: /Library/Audio/Plug-Ins/VST3
 
 Hardware Setup: Ensure "MiniLab 3 MIDI" is enabled as a MIDI Output in your DAW settings to allow for LED feedback.
 
-For Developers
-Framework: JUCE 8 (WebView2/WKWebView backend).
-
-UI Stack: React 18, Tailwind CSS, Vite.
-
-Internal API: The engine communicates via a JSON bridge using updateCPlusPlusState and requestInitialState native functions.
-
 ## ⚖️ License
 This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0).
 
@@ -70,6 +67,15 @@ Non-Commercial: You may not sell this plugin or any derivative software.
 ShareAlike: Any modifications or ports must be distributed under the same license.
 
 Note: As the original author, I reserve the right to offer official binaries or professional support for a fee.
+
+## 🛠 Developer API (Internal Bridge)
+The engine communicates with the UI via a JSON bridge. Developers can interface with the core using these native JUCE functions:
+
+requestInitialState(): Fetches the full serialized state for UI hydration.
+
+updateCPlusPlusState(json): Updates the C++ engine with new step or timing data.
+
+uiReadyForEngineState(): Notifies the engine that the UI is ready to receive hardware updates.
 
 
 
