@@ -38,11 +38,8 @@ void MiniLAB3StepSequencerAudioProcessor::updateUiMetadataFromVar(const juce::va
     if (object->hasProperty("activePatternIndex")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activePatternIndex"))), std::memory_order_release);
 
     if (object->hasProperty("selectedTrack")) currentInstrument.store(juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, static_cast<int>(object->getProperty("selectedTrack"))), std::memory_order_release);
-
     if (object->hasProperty("currentPage")) currentPage.store(juce::jlimit(0, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("currentPage"))), std::memory_order_release);
-    // FIX: Parse activeSection from JS safely
     if (object->hasProperty("activeSection")) activeSection.store(juce::jlimit(-1, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("activeSection"))), std::memory_order_release);
-
     if (object->hasProperty("uiScale")) uiScale.store(static_cast<float>(static_cast<double>(object->getProperty("uiScale"))), std::memory_order_release);
 }
 
@@ -57,105 +54,114 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
 
     updateUiMetadataFromVar(stateVar);
 
-    const juce::ScopedLock lock(writerLock);
+    auto parsePattern = [&](juce::DynamicObject* dataObj, PatternSnapshot& patternWrite, int pIdx)
+    {
+        if (!dataObj) return;
 
-    auto parsePattern = [&](juce::DynamicObject* dataObj, int pIdx)
+        const juce::StringArray matrixKeys{ "activeSteps", "velocities", "gates", "probabilities", "repeats", "shifts", "swings" };
+        for (const auto& key : matrixKeys)
         {
-            if (!dataObj) return;
-
-            const juce::StringArray matrixKeys{ "activeSteps", "velocities", "gates", "probabilities", "repeats", "shifts", "swings" };
-            for (const auto& key : matrixKeys)
+            if (!dataObj->hasProperty(key)) continue;
+            if (auto* tracks = dataObj->getProperty(key).getArray())
             {
-                if (!dataObj->hasProperty(key)) continue;
-                if (auto* tracks = dataObj->getProperty(key).getArray())
+                for (int track = 0; track < juce::jmin(MiniLAB3Seq::kNumTracks, tracks->size()); ++track)
                 {
-                    for (int track = 0; track < juce::jmin(MiniLAB3Seq::kNumTracks, tracks->size()); ++track)
+                    if (auto* steps = tracks->getReference(track).getArray())
                     {
-                        if (auto* steps = tracks->getReference(track).getArray())
+                        for (int step = 0; step < juce::jmin(MiniLAB3Seq::kNumSteps, steps->size()); ++step)
                         {
-                            for (int step = 0; step < juce::jmin(MiniLAB3Seq::kNumSteps, steps->size()); ++step)
+                            if (key == "activeSteps")
                             {
-                                if (key == "activeSteps") {
-                                    bool val = readBoolVar(steps->getReference(step));
-                                    sequencerMatrix[0][pIdx][track][step].isActive = val;
-                                    sequencerMatrix[1][pIdx][track][step].isActive = val;
-                                }
-                                else {
-                                    const float value = readFloatVar(steps->getReference(step));
-                                    if (key == "velocities") { sequencerMatrix[0][pIdx][track][step].velocity = value / 100.0f; sequencerMatrix[1][pIdx][track][step].velocity = value / 100.0f; }
-                                    else if (key == "gates") { sequencerMatrix[0][pIdx][track][step].gate = value / 100.0f; sequencerMatrix[1][pIdx][track][step].gate = value / 100.0f; }
-                                    else if (key == "probabilities") { sequencerMatrix[0][pIdx][track][step].probability = value / 100.0f; sequencerMatrix[1][pIdx][track][step].probability = value / 100.0f; }
-                                    else if (key == "repeats") { sequencerMatrix[0][pIdx][track][step].repeats = static_cast<int>(value); sequencerMatrix[1][pIdx][track][step].repeats = static_cast<int>(value); }
-                                    else if (key == "shifts") { sequencerMatrix[0][pIdx][track][step].shift = value / 100.0f; sequencerMatrix[1][pIdx][track][step].shift = value / 100.0f; }
-                                    else if (key == "swings") { sequencerMatrix[0][pIdx][track][step].swing = value / 100.0f; sequencerMatrix[1][pIdx][track][step].swing = value / 100.0f; }
-                                }
+                                patternWrite[track][step].isActive = readBoolVar(steps->getReference(step));
+                            }
+                            else
+                            {
+                                const float value = readFloatVar(steps->getReference(step));
+                                if (key == "velocities") patternWrite[track][step].velocity = value / 100.0f;
+                                else if (key == "gates") patternWrite[track][step].gate = value / 100.0f;
+                                else if (key == "probabilities") patternWrite[track][step].probability = value / 100.0f;
+                                else if (key == "repeats") patternWrite[track][step].repeats = static_cast<int>(value);
+                                else if (key == "shifts") patternWrite[track][step].shift = value / 100.0f;
+                                else if (key == "swings") patternWrite[track][step].swing = value / 100.0f;
                             }
                         }
                     }
                 }
             }
-
-            if (pIdx == activePatternIndex.load(std::memory_order_acquire))
-            {
-                if (dataObj->hasProperty("midiKeys")) {
-                    if (auto* notes = dataObj->getProperty("midiKeys").getArray()) {
-                        for (int t = 0; t < juce::jmin(MiniLAB3Seq::kNumTracks, notes->size()); ++t) {
-                            const int midiNote = MiniLAB3Seq::parseMidiNoteName(notes->getReference(t).toString());
-                            setParameterFromPlainValue("note_" + juce::String(t + 1), static_cast<float>(midiNote));
-                        }
-                    }
-                }
-                if (dataObj->hasProperty("trackStates")) {
-                    if (auto* states = dataObj->getProperty("trackStates").getArray()) {
-                        for (int t = 0; t < juce::jmin(MiniLAB3Seq::kNumTracks, states->size()); ++t) {
-                            if (auto* state = states->getReference(t).getDynamicObject()) {
-                                setParameterFromPlainValue("mute_" + juce::String(t + 1), readBoolVar(state->getProperty("mute")) ? 1.0f : 0.0f);
-                                setParameterFromPlainValue("solo_" + juce::String(t + 1), readBoolVar(state->getProperty("solo")) ? 1.0f : 0.0f);
-
-                                if (state->hasProperty("midiChannel")) {
-                                    trackMidiChannels[t].store(static_cast<int>(state->getProperty("midiChannel")), std::memory_order_release);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        };
-
-    if (object->hasProperty("patterns")) {
-        if (auto* pArray = object->getProperty("patterns").getArray()) {
-            for (int i = 0; i < juce::jmin(MiniLAB3Seq::kNumPatterns, pArray->size()); ++i)
-                if (auto* pObj = pArray->getReference(i).getDynamicObject())
-                    parsePattern(pObj->getProperty("data").getDynamicObject(), i);
         }
-    }
-    else if (object->hasProperty("patternData")) {
-        parsePattern(object->getProperty("patternData").getDynamicObject(), activePatternIndex.load(std::memory_order_acquire));
-    }
-    else {
-        parsePattern(object, activePatternIndex.load(std::memory_order_acquire));
-    }
 
-    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
+        if (pIdx == activePatternIndex.load(std::memory_order_acquire))
+        {
+            if (dataObj->hasProperty("midiKeys")) {
+                if (auto* notes = dataObj->getProperty("midiKeys").getArray()) {
+                    for (int t = 0; t < juce::jmin(MiniLAB3Seq::kNumTracks, notes->size()); ++t) {
+                        const int midiNote = MiniLAB3Seq::parseMidiNoteName(notes->getReference(t).toString());
+                        setParameterFromPlainValue("note_" + juce::String(t + 1), static_cast<float>(midiNote));
+                    }
+                }
+            }
+            if (dataObj->hasProperty("trackStates")) {
+                if (auto* states = dataObj->getProperty("trackStates").getArray()) {
+                    for (int t = 0; t < juce::jmin(MiniLAB3Seq::kNumTracks, states->size()); ++t) {
+                        if (auto* trackState = states->getReference(t).getDynamicObject()) {
+                            setParameterFromPlainValue("mute_" + juce::String(t + 1), readBoolVar(trackState->getProperty("mute")) ? 1.0f : 0.0f);
+                            setParameterFromPlainValue("solo_" + juce::String(t + 1), readBoolVar(trackState->getProperty("solo")) ? 1.0f : 0.0f);
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    if (object->hasProperty("patterns"))
+    {
+        modifySequencerState([&](MatrixSnapshot& writeMatrix)
+        {
+            if (auto* pArray = object->getProperty("patterns").getArray())
+            {
+                for (int i = 0; i < juce::jmin(MiniLAB3Seq::kNumPatterns, pArray->size()); ++i)
+                {
+                    if (auto* pObj = pArray->getReference(i).getDynamicObject())
+                        parsePattern(pObj->getProperty("data").getDynamicObject(), writeMatrix[i], i);
+                }
+            }
+        });
+
+        for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
+            for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
+                updateTrackLength(p, track);
+    }
+    else
+    {
+        const int pIdx = activePatternIndex.load(std::memory_order_acquire);
+        auto* patternObject = object->hasProperty("patternData") ? object->getProperty("patternData").getDynamicObject() : object;
+
+        modifyPatternState(pIdx, [&](PatternSnapshot& patternWrite)
+        {
+            parsePattern(patternObject, patternWrite, pIdx);
+        });
+
         for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
-            updateTrackLength(p, track);
+            updateTrackLength(pIdx, track);
+    }
 
     requestLedRefresh();
-    
+    markUiStateDirty();
 }
 
 juce::var MiniLAB3StepSequencerAudioProcessor::buildPatternDataVar(int patternIndex) const
 {
     juce::DynamicObject::Ptr data = new juce::DynamicObject();
     juce::Array<juce::var> activeSteps, velocities, probabilities, gates, shifts, swings, repeats, midiKeys, trackStates;
-    const auto& readMatrix = getActiveMatrix()[patternIndex];
+    PatternSnapshot readPattern{};
+    copyActivePattern(patternIndex, readPattern);
 
     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
     {
         juce::Array<juce::var> activeRow, velocityRow, probabilityRow, gateRow, shiftRow, swingRow, repeatRow;
         for (int step = 0; step < MiniLAB3Seq::kNumSteps; ++step)
         {
-            const auto& stepData = readMatrix[track][step];
+            const auto& stepData = readPattern[track][step];
             activeRow.add(stepData.isActive);
             velocityRow.add(juce::jlimit(0, 100, static_cast<int>(std::round(stepData.velocity * 100.0f))));
             probabilityRow.add(juce::jlimit(0, 100, static_cast<int>(std::round(stepData.probability * 100.0f))));
@@ -217,10 +223,7 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildFullUiStateVarForEditor() co
     root->setProperty("activeIdx", activePatternIndex.load(std::memory_order_acquire));
     root->setProperty("selectedTrack", currentInstrument.load(std::memory_order_acquire));
     root->setProperty("currentPage", currentPage.load(std::memory_order_acquire));
-
-    // FIX: Ship activeSection so React hydrates correctly
     root->setProperty("activeSection", activeSection.load(std::memory_order_acquire));
-
     root->setProperty("themeIdx", themeIndex.load(std::memory_order_acquire));
     root->setProperty("uiScale", uiScale.load(std::memory_order_acquire));
 
@@ -239,7 +242,8 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
     xml->setAttribute("version", 1);
 
     auto* patternsXml = xml->createNewChildElement("Patterns");
-    const auto& matrix = getActiveMatrix();
+    MatrixSnapshot matrix{};
+    buildActiveMatrixSnapshot(matrix);
 
     for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
     {
@@ -276,10 +280,7 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
     uiXml->setAttribute("activePatternIndex", activePatternIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("currentInstrument", currentInstrument.load(std::memory_order_acquire));
     uiXml->setAttribute("currentPage", currentPage.load(std::memory_order_acquire));
-
-    // FIX: XML Save Support
     uiXml->setAttribute("activeSection", activeSection.load(std::memory_order_acquire));
-
     uiXml->setAttribute("themeIdx", themeIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("footerTab", footerTabIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("uiScale", static_cast<double>(uiScale.load(std::memory_order_acquire)));
@@ -327,9 +328,8 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         if (restoredTree.isValid()) apvts.replaceState(restoredTree);
     }
 
+    modifySequencerState([&](MatrixSnapshot& writeMatrix)
     {
-        const juce::ScopedLock lock(writerLock);
-
         auto parseTrackXml = [&](juce::XmlElement* trackElement, int pIdx, int track) {
             instrumentNames[track] = trackElement->getStringAttribute("name", instrumentNames[track]);
             trackMidiChannels[track].store(trackElement->getIntAttribute("midiChannel", 1), std::memory_order_release);
@@ -348,18 +348,16 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
             swings.addTokens(trackElement->getStringAttribute("swings"), ",", "");
 
             for (int step = 0; step < MiniLAB3Seq::kNumSteps; ++step) {
-                bool isActive = (step < steps.length() && steps[step] == '1');
-                sequencerMatrix[0][pIdx][track][step].isActive = isActive;
-                sequencerMatrix[1][pIdx][track][step].isActive = isActive;
-
-                if (step < vels.size()) { sequencerMatrix[0][pIdx][track][step].velocity = vels[step].getFloatValue(); sequencerMatrix[1][pIdx][track][step].velocity = vels[step].getFloatValue(); }
-                if (step < gates.size()) { sequencerMatrix[0][pIdx][track][step].gate = gates[step].getFloatValue(); sequencerMatrix[1][pIdx][track][step].gate = gates[step].getFloatValue(); }
-                if (step < probs.size()) { sequencerMatrix[0][pIdx][track][step].probability = probs[step].getFloatValue(); sequencerMatrix[1][pIdx][track][step].probability = probs[step].getFloatValue(); }
-                if (step < reps.size()) { sequencerMatrix[0][pIdx][track][step].repeats = reps[step].getIntValue(); sequencerMatrix[1][pIdx][track][step].repeats = reps[step].getIntValue(); }
-                if (step < shifts.size()) { sequencerMatrix[0][pIdx][track][step].shift = shifts[step].getFloatValue(); sequencerMatrix[1][pIdx][track][step].shift = shifts[step].getFloatValue(); }
-                if (step < swings.size()) { sequencerMatrix[0][pIdx][track][step].swing = swings[step].getFloatValue(); sequencerMatrix[1][pIdx][track][step].swing = swings[step].getFloatValue(); }
+                auto& stepData = writeMatrix[pIdx][track][step];
+                stepData.isActive = (step < steps.length() && steps[step] == '1');
+                if (step < vels.size()) stepData.velocity = vels[step].getFloatValue();
+                if (step < gates.size()) stepData.gate = gates[step].getFloatValue();
+                if (step < probs.size()) stepData.probability = probs[step].getFloatValue();
+                if (step < reps.size()) stepData.repeats = reps[step].getIntValue();
+                if (step < shifts.size()) stepData.shift = shifts[step].getFloatValue();
+                if (step < swings.size()) stepData.swing = swings[step].getFloatValue();
             }
-            };
+        };
 
         if (auto* patternsXml = xmlState->getChildByName("Patterns")) {
             for (auto* patternXml : patternsXml->getChildIterator()) {
@@ -373,22 +371,20 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
                 }
             }
         }
-    }
+    });
 
     if (auto* uiXml = xmlState->getChildByName("UIState")) {
         activePatternIndex.store(uiXml->getIntAttribute("activePatternIndex", 0), std::memory_order_release);
         currentInstrument.store(uiXml->getIntAttribute("currentInstrument", 0), std::memory_order_release);
         currentPage.store(uiXml->getIntAttribute("currentPage", 0), std::memory_order_release);
-
-        // FIX: XML Load Support
         activeSection.store(uiXml->getIntAttribute("activeSection", -1), std::memory_order_release);
-
         themeIndex.store(uiXml->getIntAttribute("themeIdx", 0), std::memory_order_release);
         footerTabIndex.store(uiXml->getIntAttribute("footerTab", 0), std::memory_order_release);
         uiScale.store(static_cast<float>(uiXml->getDoubleAttribute("uiScale", 1.0)), std::memory_order_release);
     }
     else {
         activePatternIndex.store(xmlState->getIntAttribute("activePatternIndex", 0), std::memory_order_release);
+        activeSection.store(xmlState->getIntAttribute("activeSection", -1), std::memory_order_release);
     }
 
     for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p) {
@@ -399,6 +395,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
     }
 
     requestLedRefresh();
-  
+    markUiStateDirty();
     initialising.store(false, std::memory_order_release);
 }

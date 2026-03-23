@@ -12,27 +12,31 @@ void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
 {
     global16thNote.store(-1, std::memory_order_release);
     lastProcessedStep = -1;
-
-    eventQueue.clear(); // Safe vector clear
+    queuedEventCount = 0;
     hwFifo.reset();
 
     playbackRandom.setSeed(0x31337);
 
+    for (auto& event : eventQueue)
+        event = {};
+
     droppedNotesCount.store(0, std::memory_order_release);
-    droppedHWMsgs.store(0, std::memory_order_release);
+    droppedHWMsgs.store(0, std::memory_order_release); // Reset telemetry
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg)
 {
-    // OPTIMIZATION: Bounded vector heap with massive ceiling to prevent memory leaks
-    if (eventQueue.size() >= 16384)
+    if (queuedEventCount >= MaxMidiEvents)
     {
         droppedNotesCount.fetch_add(1, std::memory_order_relaxed);
         return;
     }
 
-    eventQueue.push_back({ ppqTime, msg, true });
-    std::push_heap(eventQueue.begin(), eventQueue.end(), EventComparator());
+    eventQueue[queuedEventCount].ppqTime = ppqTime;
+    eventQueue[queuedEventCount].message = msg;
+    eventQueue[queuedEventCount].isActive = true;
+    ++queuedEventCount;
+    std::push_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
 }
 
 void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
@@ -68,6 +72,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
             }
             else {
+                // If the FIFO is perfectly full, safely log it for telemetry without blocking
                 droppedHWMsgs.fetch_add(1, std::memory_order_relaxed);
             }
         }
@@ -109,7 +114,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 if (ppqStart < (lastProcessedStep * 0.25))
                 {
                     lastProcessedStep = static_cast<int>(std::floor(ppqStart * 4.0)) - 1;
-                    eventQueue.clear();
+                    queuedEventCount = 0;
                     for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
                         midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
                 }
@@ -118,7 +123,6 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 const int lastStepInBlock = static_cast<int>(std::floor(blockEndPpq * 4.0));
 
                 const int pIdx = activePatternIndex.load(std::memory_order_acquire);
-                const auto& readMatrix = getActiveMatrix()[pIdx];
 
                 for (int step = firstStep; step <= lastStepInBlock; ++step)
                 {
@@ -138,7 +142,8 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         const int length = juce::jlimit(1, MiniLAB3Seq::kNumSteps, trackLengths[pIdx][track].load(std::memory_order_acquire));
                         const int wrappedStep = step % length;
 
-                        const auto& stepData = readMatrix[track][wrappedStep];
+                        const auto& trackData = getActiveTrack(pIdx, track);
+                        const auto& stepData = trackData[wrappedStep];
                         if (!stepData.isActive)
                             continue;
 
@@ -177,7 +182,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                 const double blockLengthPpq = juce::jmax(1.0e-9, blockEndPpq - ppqStart);
 
-                while (!eventQueue.empty())
+                while (queuedEventCount > 0)
                 {
                     const auto& event = eventQueue.front();
 
@@ -196,15 +201,15 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         midiMessages.addEvent(event.message, 0);
                     }
 
-                    std::pop_heap(eventQueue.begin(), eventQueue.end(), EventComparator());
-                    eventQueue.pop_back();
+                    std::pop_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
+                    --queuedEventCount;
                 }
             }
             else if (lastProcessedStep != -1)
             {
                 global16thNote.store(-1, std::memory_order_release);
                 lastProcessedStep = -1;
-                eventQueue.clear();
+                queuedEventCount = 0;
                 for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
                     midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
             }

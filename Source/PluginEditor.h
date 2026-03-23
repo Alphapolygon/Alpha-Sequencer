@@ -2,7 +2,8 @@
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class MiniLAB3StepSequencerAudioProcessorEditor : public juce::AudioProcessorEditor, public juce::Timer
+class MiniLAB3StepSequencerAudioProcessorEditor : public juce::AudioProcessorEditor,
+                                                 public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor&);
@@ -14,10 +15,7 @@ public:
 
 private:
     void pushPlaybackStateIfChanged();
-    void pushEngineStateIfChanged();
-
-    // --- NEW: Drainer for the Hardware Queue ---
-    void pushHardwarePatches();
+    void pushUiDiffEvents();
 
     MiniLAB3StepSequencerAudioProcessor& audioProcessor;
     juce::WebBrowserComponent webComponent;
@@ -25,7 +23,6 @@ private:
     double lastBpm = 0.0;
     bool lastIsPlaying = false;
     int lastStep = -1;
-    uint32_t lastUiStateVersion = 0;
 
     int lastDroppedNotes = -1;
     int lastDroppedHWMsgs = -1;

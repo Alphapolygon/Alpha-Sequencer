@@ -1,20 +1,23 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <array>
 #include <atomic>
 #include <vector>
 #include <algorithm>
+#include <cstring>
 
 #include "PluginProcessorTypes.h"
 #include "PluginProcessorHelpers.h"
 
-struct HardwareMsg {
+struct HardwareMsg
+{
     uint8_t d[3];
     int len;
 };
 
 class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor,
-    public juce::Timer
+                                            public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessor();
@@ -63,26 +66,37 @@ public:
     std::atomic<float>* nudgeParams[MiniLAB3Seq::kNumTracks] = {};
     std::atomic<bool> initialising{ true };
 
-    using MatrixSnapshot = StepData[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
-    const MatrixSnapshot& getActiveMatrix() const;
+    using TrackSnapshot = StepData[MiniLAB3Seq::kNumSteps];
+    using PatternSnapshot = TrackSnapshot[MiniLAB3Seq::kNumTracks];
+    using MatrixSnapshot = PatternSnapshot[MiniLAB3Seq::kNumPatterns];
 
-    void commitTrackChange(int pIdx, int tIdx, const std::function<void(StepData*)>& mutator);
+    void modifyTrackState(int patternIndex, int trackIndex, const std::function<void(TrackSnapshot&)>& modifier);
+    void modifyPatternState(int patternIndex, const std::function<void(PatternSnapshot&)>& modifier);
+    void modifySequencerState(const std::function<void(MatrixSnapshot&)>& modifier);
+    const TrackSnapshot& getActiveTrack(int patternIndex, int trackIndex) const;
+    void copyActivePattern(int patternIndex, PatternSnapshot& dest) const;
+    void buildActiveMatrixSnapshot(MatrixSnapshot& dest) const;
 
-    void setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive);
-    void setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value);
-    void setTrackStateNative(int tIdx, const juce::String& stateName, bool isEnabled);
-    void setTrackMidiKeyNative(int tIdx, int midiNote);
-    void setTrackMidiChannelNative(int tIdx, int channel);
-    void clearTrackNative(int pIdx, int tIdx);
+    void setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive, bool emitUiDiff = false);
+    void setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value, bool emitUiDiff = false);
+    void setTrackStateNative(int tIdx, const juce::String& stateName, bool isEnabled, bool emitUiDiff = false);
+    void setTrackMidiKeyNative(int tIdx, int midiNote, bool emitUiDiff = false);
+    void setTrackMidiChannelNative(int tIdx, int channel, bool emitUiDiff = false);
+    void clearTrackNative(int pIdx, int tIdx, bool emitUiDiff = false);
+    void clearPageNative(int pIdx, int tIdx, int pageIdx, bool emitUiDiff = false);
 
-    void setActivePatternNative(int pIdx);
-    void setSelectedTrackNative(int tIdx);
-    void setCurrentPageNative(int pageIdx);
+    void setActivePatternNative(int pIdx, bool emitUiDiff = false);
+    void setSelectedTrackNative(int tIdx, bool emitUiDiff = false);
+    void setCurrentPageNative(int pageIdx, bool emitUiDiff = false);
+
+    void pushUiDiffEvent(const UiDiffEvent& event) noexcept;
+    bool popUiDiffEvent(UiDiffEvent& event) noexcept;
 
     std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     std::atomic<int> trackLengths[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
+
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 
     std::atomic<int> currentInstrument{ 0 };
@@ -97,6 +111,7 @@ public:
 
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
+    std::atomic<uint32_t> uiStateVersion{ 1 };
 
     void setStepDataFromVar(const juce::var& stateVar);
     void updateUiMetadataFromVar(const juce::var& stateVar);
@@ -105,20 +120,20 @@ public:
     juce::var buildCurrentPatternStateVar() const;
     juce::var buildFullUiStateVarForEditor() const;
 
+    uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
+    void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
+    void markUiStateDirty() noexcept;
+
     std::atomic<int> droppedNotesCount{ 0 };
     std::atomic<int> droppedHWMsgs{ 0 };
-
-    // --- NEW: Lock-Free UI Event Queue ---
-    void pushUiPatch(const UiPatchEvent& ev);
-    juce::AbstractFifo uiPatchFifo{ 1024 };
-    std::array<UiPatchEvent, 1024> uiPatchQueue{};
+    std::atomic<int> droppedUiDiffs{ 0 };
 
 private:
     mutable juce::CriticalSection writerLock;
     mutable juce::SpinLock hardwareLock;
 
-    std::atomic<int> activeMatrixIndex{ 0 };
-    StepData sequencerMatrix[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
+    std::atomic<uint8_t> activeTrackBufferIndex[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks]{};
+    StepData sequencerTrackBuffers[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps]{};
 
     std::shared_ptr<juce::MidiOutput> hardwareOutput;
     std::shared_ptr<ControllerProfile> activeController;
@@ -129,7 +144,13 @@ private:
     std::atomic<float> pendingSwingNormalized{ -1.0f };
 
     int lastProcessedStep = -1;
-    std::vector<ScheduledMidiEvent> eventQueue;
+    static constexpr size_t MaxMidiEvents = 8192;
+    std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{};
+    size_t queuedEventCount = 0;
+
+    static constexpr int MaxUiDiffEvents = 2048;
+    juce::AbstractFifo uiDiffFifo{ MaxUiDiffEvents };
+    std::array<UiDiffEvent, MaxUiDiffEvents> uiDiffQueue{};
 
     juce::AbstractFifo hwFifo{ 4096 };
     std::array<HardwareMsg, 4096> hwQueue{};

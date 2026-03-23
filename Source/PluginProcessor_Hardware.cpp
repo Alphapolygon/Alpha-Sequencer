@@ -36,17 +36,20 @@ namespace
             const int startStep = page * MiniLAB3Seq::kPadsPerPage;
             const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
             const int current16th = processor.global16thNote.load(std::memory_order_acquire);
+
             const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+
+            // FIX: Track length is pulled from the exact active pattern context
             const int trackLength = processor.trackLengths[pIdx][instrument].load(std::memory_order_acquire);
             const int playingStep = (current16th >= 0 && trackLength > 0) ? (current16th % trackLength) : -1;
 
-            const auto& matrix = processor.getActiveMatrix()[pIdx];
+            const auto& trackData = processor.getActiveTrack(pIdx, instrument);
 
             for (int pad = 0; pad < MiniLAB3Seq::kPadsPerPage; ++pad)
             {
                 const int step = startStep + pad;
-                const bool active = matrix[instrument][step].isActive;
-                const float velocity = matrix[instrument][step].velocity;
+                const bool active = trackData[step].isActive;
+                const float velocity = trackData[step].velocity;
                 const bool isPlayhead = (step == playingStep);
 
                 uint8_t r = 0, g = 0, b = 0;
@@ -88,14 +91,7 @@ namespace
                 {
                     int newInstrument = (127 - value) / 8;
                     newInstrument = juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, newInstrument);
-                    if (newInstrument != processor.currentInstrument.load(std::memory_order_acquire)) {
-                        processor.currentInstrument.store(newInstrument, std::memory_order_release);
-
-                        UiPatchEvent patch;
-                        patch.type = UiPatchType::TrackChanged;
-                        patch.iVal = newInstrument;
-                        processor.pushUiPatch(patch);
-                    }
+                    processor.setSelectedTrackNative(newInstrument, true);
                     return true;
                 }
                 else if (cc == 74 || cc == 71 || cc == 76 || cc == 77 || cc == 93 || cc == 18 || cc == 19 || cc == 16)
@@ -112,17 +108,9 @@ namespace
                         const int step = (processor.currentPage.load(std::memory_order_acquire) * MiniLAB3Seq::kPadsPerPage) + knobIndex;
                         const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
 
-                        if (processor.getActiveMatrix()[pIdx][instrument][step].isActive) {
-                            float newVal = value / 127.0f;
-                            processor.setStepParameterNative(pIdx, instrument, step, "velocities", newVal);
+                        if (processor.getActiveTrack(pIdx, instrument)[step].isActive)
+                            processor.setStepParameterNative(pIdx, instrument, step, "velocities", value / 127.0f, true);
 
-                            UiPatchEvent patch;
-                            patch.type = UiPatchType::StepParam;
-                            patch.pIdx = pIdx; patch.tIdx = instrument; patch.sIdx = step;
-                            juce::String("velocities").copyToUTF8(patch.stringVal, 15);
-                            patch.fVal = newVal;
-                            processor.pushUiPatch(patch);
-                        }
                         return true;
                     }
                 }
@@ -130,18 +118,12 @@ namespace
                 {
                     const auto page = processor.currentPage.load(std::memory_order_acquire);
                     int newPage = page;
-                    if (value > 64)      newPage = juce::jmin(MiniLAB3Seq::kNumPages - 1, page + 1);
+                    if (value > 64) newPage = juce::jmin(MiniLAB3Seq::kNumPages - 1, page + 1);
                     else if (value < 64) newPage = juce::jmax(0, page - 1);
 
-                    if (newPage != page) {
-                        processor.currentPage.store(newPage, std::memory_order_release);
-                        processor.activeSection.store(newPage, std::memory_order_release);
+                    if (newPage != page)
+                        processor.setCurrentPageNative(newPage, true);
 
-                        UiPatchEvent patch;
-                        patch.type = UiPatchType::PageChanged;
-                        patch.iVal = newPage;
-                        processor.pushUiPatch(patch);
-                    }
                     return true;
                 }
                 else if (cc == 115 && value == 127)
@@ -150,15 +132,7 @@ namespace
                     const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
                     const int page = processor.currentPage.load(std::memory_order_acquire);
 
-                    for (int step = page * MiniLAB3Seq::kPadsPerPage; step < (page * MiniLAB3Seq::kPadsPerPage) + MiniLAB3Seq::kPadsPerPage; ++step) {
-                        processor.setStepActiveNative(pIdx, instrument, step, false);
-
-                        UiPatchEvent patch;
-                        patch.type = UiPatchType::StepActive;
-                        patch.pIdx = pIdx; patch.tIdx = instrument; patch.sIdx = step;
-                        patch.bVal = false;
-                        processor.pushUiPatch(patch);
-                    }
+                    processor.clearPageNative(pIdx, instrument, page, true);
                     return true;
                 }
             }
@@ -171,27 +145,11 @@ namespace
                     const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
                     const int step = (processor.currentPage.load(std::memory_order_acquire) * MiniLAB3Seq::kPadsPerPage) + (note - 36);
 
-                    const bool currentState = processor.getActiveMatrix()[pIdx][instrument][step].isActive;
+                    const bool currentState = processor.getActiveTrack(pIdx, instrument)[step].isActive;
+                    processor.setStepActiveNative(pIdx, instrument, step, !currentState, true);
 
-                    processor.setStepActiveNative(pIdx, instrument, step, !currentState);
-
-                    UiPatchEvent patchActive;
-                    patchActive.type = UiPatchType::StepActive;
-                    patchActive.pIdx = pIdx; patchActive.tIdx = instrument; patchActive.sIdx = step;
-                    patchActive.bVal = !currentState;
-                    processor.pushUiPatch(patchActive);
-
-                    if (!currentState) {
-                        float vel = msg.getFloatVelocity();
-                        processor.setStepParameterNative(pIdx, instrument, step, "velocities", vel);
-
-                        UiPatchEvent patchVel;
-                        patchVel.type = UiPatchType::StepParam;
-                        patchVel.pIdx = pIdx; patchVel.tIdx = instrument; patchVel.sIdx = step;
-                        juce::String("velocities").copyToUTF8(patchVel.stringVal, 15);
-                        patchVel.fVal = vel;
-                        processor.pushUiPatch(patchVel);
-                    }
+                    if (!currentState)
+                        processor.setStepParameterNative(pIdx, instrument, step, "velocities", msg.getFloatVelocity(), true);
 
                     return true;
                 }
@@ -222,37 +180,43 @@ namespace
             return juce::MidiMessage(data, sizeof(data));
         }
     };
-}
+} // namespace
 
 void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
 {
     bool expected = false;
-    if (!isAttemptingConnection.compare_exchange_strong(expected, true)) return;
+    if (!isAttemptingConnection.compare_exchange_strong(expected, true))
+        return;
 
     {
         const juce::SpinLock::ScopedLockType lock(hardwareLock);
-        if (hardwareOutput != nullptr) {
+        if (hardwareOutput != nullptr)
+        {
             isAttemptingConnection.store(false, std::memory_order_release);
             return;
         }
     }
 
     auto devices = juce::MidiOutput::getAvailableDevices();
+
     std::shared_ptr<juce::MidiOutput> newOutput;
     std::shared_ptr<ControllerProfile> newProfile;
 
     std::vector<std::unique_ptr<ControllerProfile>> profiles;
     profiles.push_back(std::make_unique<ArturiaMiniLab3Profile>());
 
-    for (const auto& device : devices) {
-        for (auto& profile : profiles) {
+    for (const auto& device : devices)
+    {
+        for (auto& profile : profiles)
+        {
             if (device.name.containsIgnoreCase(profile->getDeviceNameSubstring())
                 && device.name.containsIgnoreCase("MIDI")
                 && !device.name.containsIgnoreCase("DIN")
                 && !device.name.containsIgnoreCase("MCU"))
             {
                 auto openedDevice = juce::MidiOutput::openDevice(device.identifier);
-                if (openedDevice != nullptr) {
+                if (openedDevice != nullptr)
+                {
                     newOutput = std::move(openedDevice);
                     newProfile = std::move(profile);
                     newProfile->initializeHardware(newOutput.get());
@@ -263,7 +227,8 @@ void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
         if (newOutput != nullptr) break;
     }
 
-    if (newOutput != nullptr) {
+    if (newOutput != nullptr)
+    {
         const juce::SpinLock::ScopedLockType lock(hardwareLock);
         hardwareOutput = std::move(newOutput);
         activeController = std::move(newProfile);
@@ -283,7 +248,8 @@ void MiniLAB3StepSequencerAudioProcessor::resetHardwareState()
         localProfile = activeController;
     }
 
-    if (localOutput && localProfile) {
+    if (localOutput && localProfile)
+    {
         localProfile->resetHardware(localOutput.get());
         juce::Thread::sleep(30);
     }
@@ -298,7 +264,8 @@ void MiniLAB3StepSequencerAudioProcessor::timerCallback()
 {
     applyPendingParameterUpdates();
 
-    if (initialising.load(std::memory_order_acquire)) return;
+    if (initialising.load(std::memory_order_acquire))
+        return;
 
     auto readHandle = hwFifo.read(hwFifo.getNumReady());
     auto processQueue = [&](int start, int size) {
@@ -311,20 +278,24 @@ void MiniLAB3StepSequencerAudioProcessor::timerCallback()
     processQueue(readHandle.startIndex1, readHandle.blockSize1);
     processQueue(readHandle.startIndex2, readHandle.blockSize2);
 
-    if (hardwareOutput == nullptr) {
+    if (hardwareOutput == nullptr)
+    {
         static int connectionRetry = 0;
-        if (++connectionRetry >= 25) {
+        if (++connectionRetry >= 25)
+        {
             openHardwareOutput();
             connectionRetry = 0;
         }
     }
 
     const int currentCountdown = ledRefreshCountdown.load(std::memory_order_acquire);
-    if (currentCountdown > 0) {
+    if (currentCountdown > 0)
+    {
         updateHardwareLEDs(true);
         ledRefreshCountdown.store(currentCountdown - 1, std::memory_order_release);
     }
-    else {
+    else
+    {
         updateHardwareLEDs(false);
     }
 }
@@ -345,7 +316,8 @@ void MiniLAB3StepSequencerAudioProcessor::updateHardwareLEDs(bool forceOverwrite
 
 void MiniLAB3StepSequencerAudioProcessor::handleMidiInput(const juce::MidiMessage& msg, juce::MidiBuffer&)
 {
-    if (initialising.load(std::memory_order_acquire)) return;
+    if (initialising.load(std::memory_order_acquire))
+        return;
 
     std::shared_ptr<ControllerProfile> localProfile;
     {
@@ -353,16 +325,23 @@ void MiniLAB3StepSequencerAudioProcessor::handleMidiInput(const juce::MidiMessag
         localProfile = activeController;
     }
 
-    if (localProfile) {
-        if (localProfile->handleMidiInput(msg, *this)) {
+    if (localProfile)
+    {
+        if (localProfile->handleMidiInput(msg, *this))
+        {
             requestLedRefresh();
+            markUiStateDirty();
         }
     }
 
-    if (msg.isController()) {
+    if (msg.isController())
+    {
         const int cc = msg.getControllerNumber();
         const float val = msg.getControllerValue() / 127.0f;
-        if (cc == 7) pendingMasterVolNormalized.store(val, std::memory_order_release);
-        else if (cc == 11) pendingSwingNormalized.store(val, std::memory_order_release);
+
+        if (cc == 7)
+            pendingMasterVolNormalized.store(val, std::memory_order_release);
+        else if (cc == 11)
+            pendingSwingNormalized.store(val, std::memory_order_release);
     }
 }

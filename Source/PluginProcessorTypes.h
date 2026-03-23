@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <cstdint>
 
 struct ScheduledMidiEvent
 {
@@ -20,18 +21,47 @@ struct StepData
     float swing = 0.0f;
 };
 
-// --- NEW: Granular UI Patch Event ---
-enum class UiPatchType { StepActive, StepParam, PageChanged, TrackChanged };
+enum class UiDiffEventType : uint8_t
+{
+    StepActive = 0,
+    StepParameter,
+    TrackState,
+    TrackMidiKey,
+    TrackMidiChannel,
+    ActivePatternChanged,
+    SelectedTrackChanged,
+    CurrentPageChanged,
+    ClearPage,
+    ClearTrack
+};
 
-struct UiPatchEvent {
-    UiPatchType type;
-    int pIdx = 0;
-    int tIdx = 0;
-    int sIdx = 0;
-    float fVal = 0.0f;
-    bool bVal = false;
-    int iVal = 0;
-    char stringVal[16] = { 0 };
+enum class UiDiffParam : uint8_t
+{
+    Velocity = 0,
+    Gate,
+    Probability,
+    Shift,
+    Swing,
+    Repeats
+};
+
+enum class UiDiffTrackState : uint8_t
+{
+    Mute = 0,
+    Solo
+};
+
+struct UiDiffEvent
+{
+    UiDiffEventType type = UiDiffEventType::StepActive;
+    int patternIndex = 0;
+    int trackIndex = 0;
+    int stepIndex = 0;
+    int value = 0;
+    int extraValue = 0;
+    float floatValue = 0.0f;
+    bool boolValue = false;
+    uint8_t field = 0;
 };
 
 class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
