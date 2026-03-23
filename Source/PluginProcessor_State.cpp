@@ -34,7 +34,11 @@ void MiniLAB3StepSequencerAudioProcessor::updateUiMetadataFromVar(const juce::va
         if (ft == "Gate") ftIdx = 1; else if (ft == "Probability") ftIdx = 2; else if (ft == "Shift") ftIdx = 3; else if (ft == "Swing") ftIdx = 4;
         footerTabIndex.store(ftIdx, std::memory_order_release);
     }
+
+    // FIX: Accept BOTH alias keys to guarantee the C++ engine switches patterns when React tells it to!
     if (object->hasProperty("activeIdx")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activeIdx"))), std::memory_order_release);
+    if (object->hasProperty("activePatternIndex")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activePatternIndex"))), std::memory_order_release);
+
     if (object->hasProperty("selectedTrack")) currentInstrument.store(juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, static_cast<int>(object->getProperty("selectedTrack"))), std::memory_order_release);
     if (object->hasProperty("currentPage")) currentPage.store(juce::jlimit(0, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("currentPage"))), std::memory_order_release);
     if (object->hasProperty("uiScale")) uiScale.store(static_cast<float>(static_cast<double>(object->getProperty("uiScale"))), std::memory_order_release);
@@ -186,7 +190,6 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildCurrentPatternStateVar() con
     return juce::var(root.get());
 }
 
-// FAST EMISSION PATH: NO JSON STRINGIFY CHURN.
 juce::var MiniLAB3StepSequencerAudioProcessor::buildFullUiStateVarForEditor() const
 {
     juce::DynamicObject::Ptr root = new juce::DynamicObject();
@@ -277,18 +280,13 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
 
     int stateVersion = xmlState->getIntAttribute("version", 0);
 
-    // ==========================================
-    // THE MIGRATION PIPELINE
-    // ==========================================
     if (stateVersion == 0)
     {
-        // Migrate V0 to V1: Wrap the old "Matrix" into a "Patterns" array at index 0
         if (auto* oldMatrix = xmlState->getChildByName("Matrix")) {
             auto* patternsXml = xmlState->createNewChildElement("Patterns");
             auto* pattern0 = patternsXml->createNewChildElement("Pattern");
             pattern0->setAttribute("index", 0);
 
-            // Move all Track children into the new Pattern 0 node
             while (auto* track = oldMatrix->getChildByName("Track")) {
                 oldMatrix->removeChildElement(track, false);
                 pattern0->addChildElement(track);
