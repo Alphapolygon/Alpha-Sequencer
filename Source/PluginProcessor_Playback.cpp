@@ -65,15 +65,19 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
         if (isHardwareControl && msg.getRawDataSize() <= 3)
         {
-            auto writeHandle = hwFifo.write(1);
-            if (writeHandle.blockSize1 > 0) {
-                auto& qMsg = hwQueue[writeHandle.startIndex1];
-                qMsg.len = msg.getRawDataSize();
-                std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
-            }
-            else {
-                // If the FIFO is perfectly full, safely log it for telemetry without blocking
-                droppedHWMsgs.fetch_add(1, std::memory_order_relaxed);
+            // Only process raw hardware CCs into the queue if this instance owns the hardware
+            if (isHardwareOwner())
+            {
+                auto writeHandle = hwFifo.write(1);
+                if (writeHandle.blockSize1 > 0) {
+                    auto& qMsg = hwQueue[writeHandle.startIndex1];
+                    qMsg.len = msg.getRawDataSize();
+                    std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
+                }
+                else {
+                    // If the FIFO is perfectly full, safely log it for telemetry without blocking
+                    droppedHWMsgs.fetch_add(1, std::memory_order_relaxed);
+                }
             }
         }
         else

@@ -16,8 +16,18 @@ struct HardwareMsg
     int len;
 };
 
+class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
+
+// Global shared resource manager for the hardware connection
+struct HardwareManager {
+    std::shared_ptr<juce::MidiOutput> output;
+    std::shared_ptr<ControllerProfile> profile;
+    juce::SpinLock lock;
+    std::atomic<MiniLAB3StepSequencerAudioProcessor*> owner{ nullptr };
+};
+
 class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor,
-                                            public juce::Timer
+    public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessor();
@@ -48,7 +58,12 @@ public:
     void updateTrackLength(int patternIndex, int trackIndex);
     void openHardwareOutput();
     void resetHardwareState();
-    bool isHardwareConnected() const { return hardwareOutput != nullptr; }
+
+    // Hardware focus management
+    void claimHardwareOwnership();
+    bool isHardwareOwner() const;
+    bool isHardwareConnected() const { return hardwareManager->output != nullptr; }
+
     void requestLedRefresh();
     void timerCallback() override;
 
@@ -130,13 +145,12 @@ public:
 
 private:
     mutable juce::CriticalSection writerLock;
-    mutable juce::SpinLock hardwareLock;
 
     std::atomic<uint8_t> activeTrackBufferIndex[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks]{};
     StepData sequencerTrackBuffers[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps]{};
 
-    std::shared_ptr<juce::MidiOutput> hardwareOutput;
-    std::shared_ptr<ControllerProfile> activeController;
+    // Shared hardware state across all instances
+    juce::SharedResourcePointer<HardwareManager> hardwareManager;
 
     std::atomic<bool> isAttemptingConnection{ false };
     std::atomic<int> ledRefreshCountdown{ 0 };
