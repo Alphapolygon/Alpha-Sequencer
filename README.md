@@ -3,7 +3,7 @@ Alpha Sequencer is a 16-track step sequencer VST3 built specifically for the Art
 
 ## ☕ Support the Project
 If this tool has improved your workflow, saved you from buying extra hardware, or helped you make music, please consider supporting its continued development. 
-Your support helps keep the project alive, covers maintenance costs, and funds future ports to other Arturia devices)
+Your support helps keep the project alive and funds future ports to other Arturia devices)
 
 
 [![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/alphapolygon)
