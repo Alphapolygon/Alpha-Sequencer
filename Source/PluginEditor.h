@@ -24,6 +24,10 @@ private:
     int lastStep = -1;
     uint32_t lastUiStateVersion = 0;
 
+    // Telemetry cache
+    int lastDroppedNotes = -1;
+    int lastDroppedHWMsgs = -1;
+
     // The critical flag that prevents the timer from breaking the JS bridge
     std::atomic<bool> isUiConnected{ false };
 

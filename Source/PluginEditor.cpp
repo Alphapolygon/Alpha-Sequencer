@@ -35,7 +35,6 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 {
                     juce::MessageManager::callAsync([this, stateVar = args[0]]()
                         {
-                            // CPU FIX: Fast Path. No matrix iterations. No stringifying. No dirty flags.
                             audioProcessor.updateUiMetadataFromVar(stateVar);
                         });
                 }
@@ -44,7 +43,8 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
         .withNativeFunction("setWindowScale",
             [this](const auto& args, auto completion)
             {
-                if (!args.isEmpty() && args[0].isDouble())
+                // FIX: Accept both integer (1) and double (0.75, 1.15) types from Javascript!
+                if (!args.isEmpty() && (args[0].isDouble() || args[0].isInt()))
                 {
                     const double scale = static_cast<double>(args[0]);
                     juce::MessageManager::callAsync([this, scale]()
@@ -58,7 +58,6 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
         .withNativeFunction("requestInitialState",
             [this](const auto&, auto completion)
             {
-                // CPU FIX: JSON string building/parsing totally eliminated.
                 completion(audioProcessor.buildFullUiStateVarForEditor());
             })
         .withNativeFunction("uiReadyForEngineState",
@@ -89,7 +88,6 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
 {
     addAndMakeVisible(webComponent);
 
-    // Scale window correctly on initialization
     const float scale = audioProcessor.uiScale.load(std::memory_order_acquire);
     setSize(static_cast<int>(1460 * scale), static_cast<int>(1024 * scale));
 
@@ -135,11 +133,17 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged()
     const int droppedNotes = audioProcessor.droppedNotesCount.load(std::memory_order_relaxed);
     const int droppedHWMsgs = audioProcessor.droppedHWMsgs.load(std::memory_order_relaxed);
 
-    if (currentBpm != lastBpm || isPlaying != lastIsPlaying || currentGridStep != lastStep)
+    if (currentBpm != lastBpm
+        || isPlaying != lastIsPlaying
+        || currentGridStep != lastStep
+        || droppedNotes != lastDroppedNotes
+        || droppedHWMsgs != lastDroppedHWMsgs)
     {
         lastBpm = currentBpm;
         lastIsPlaying = isPlaying;
         lastStep = currentGridStep;
+        lastDroppedNotes = droppedNotes;
+        lastDroppedHWMsgs = droppedHWMsgs;
 
         juce::DynamicObject::Ptr stateObj = new juce::DynamicObject();
         stateObj->setProperty("bpm", currentBpm);
@@ -158,8 +162,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushEngineStateIfChanged()
     if (uiVersion != lastUiStateVersion)
     {
         lastUiStateVersion = uiVersion;
-
-        // CPU FIX: JSON string building/parsing totally eliminated! Just emits the Var tree!
         webComponent.emitEventIfBrowserIsVisible("engineState", audioProcessor.buildFullUiStateVarForEditor());
     }
 }
