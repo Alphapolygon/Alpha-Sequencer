@@ -1,5 +1,5 @@
 ## 🎹 Alpha Sequencer: Arturia MiniLab 3 Edition
-Alpha Sequencer is a VST3 step sequencer that transforms the Arturia MiniLab 3 into a 16-track production powerhouse. It features a high-performance hybrid architecture combining a sample-accurate C++ MIDI engine with a modern React-based automation interface.
+Alpha Sequencer is a 16-track step sequencer VST3 built specifically for the Arturia MiniLab 3. It bridges a React-based user interface with a low-latency C++ engine to provide expanded sequencing capabilities not found in the default hardware.  
 
 ## ☕ Support the Project
 This plugin was developed to give the MiniLab/KeyLab features that Arturia left out. 
