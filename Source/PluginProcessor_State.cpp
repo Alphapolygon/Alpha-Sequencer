@@ -38,7 +38,11 @@ void MiniLAB3StepSequencerAudioProcessor::updateUiMetadataFromVar(const juce::va
     if (object->hasProperty("activePatternIndex")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activePatternIndex"))), std::memory_order_release);
 
     if (object->hasProperty("selectedTrack")) currentInstrument.store(juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, static_cast<int>(object->getProperty("selectedTrack"))), std::memory_order_release);
+
     if (object->hasProperty("currentPage")) currentPage.store(juce::jlimit(0, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("currentPage"))), std::memory_order_release);
+    // FIX: Parse activeSection from JS safely
+    if (object->hasProperty("activeSection")) activeSection.store(juce::jlimit(-1, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("activeSection"))), std::memory_order_release);
+
     if (object->hasProperty("uiScale")) uiScale.store(static_cast<float>(static_cast<double>(object->getProperty("uiScale"))), std::memory_order_release);
 }
 
@@ -108,7 +112,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
                                 setParameterFromPlainValue("mute_" + juce::String(t + 1), readBoolVar(state->getProperty("mute")) ? 1.0f : 0.0f);
                                 setParameterFromPlainValue("solo_" + juce::String(t + 1), readBoolVar(state->getProperty("solo")) ? 1.0f : 0.0f);
 
-                                // Hydrate MIDI channels
                                 if (state->hasProperty("midiChannel")) {
                                     trackMidiChannels[t].store(static_cast<int>(state->getProperty("midiChannel")), std::memory_order_release);
                                 }
@@ -169,8 +172,6 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildPatternDataVar(int patternIn
         juce::DynamicObject::Ptr state = new juce::DynamicObject();
         state->setProperty("mute", muteParams[track]->load() > 0.5f);
         state->setProperty("solo", soloParams[track]->load() > 0.5f);
-
-        // Export MIDI channel to React payload
         state->setProperty("midiChannel", trackMidiChannels[track].load(std::memory_order_acquire));
         trackStates.add(juce::var(state.get()));
     }
@@ -193,6 +194,7 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildCurrentPatternStateVar() con
     root->setProperty("currentInstrument", currentInstrument.load(std::memory_order_acquire));
     root->setProperty("selectedTrack", currentInstrument.load(std::memory_order_acquire));
     root->setProperty("currentPage", currentPage.load(std::memory_order_acquire));
+    root->setProperty("activeSection", activeSection.load(std::memory_order_acquire));
     root->setProperty("activePatternIndex", pIdx);
     root->setProperty("activeIdx", pIdx);
     return juce::var(root.get());
@@ -215,6 +217,10 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildFullUiStateVarForEditor() co
     root->setProperty("activeIdx", activePatternIndex.load(std::memory_order_acquire));
     root->setProperty("selectedTrack", currentInstrument.load(std::memory_order_acquire));
     root->setProperty("currentPage", currentPage.load(std::memory_order_acquire));
+
+    // FIX: Ship activeSection so React hydrates correctly
+    root->setProperty("activeSection", activeSection.load(std::memory_order_acquire));
+
     root->setProperty("themeIdx", themeIndex.load(std::memory_order_acquire));
     root->setProperty("uiScale", uiScale.load(std::memory_order_acquire));
 
@@ -270,6 +276,10 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
     uiXml->setAttribute("activePatternIndex", activePatternIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("currentInstrument", currentInstrument.load(std::memory_order_acquire));
     uiXml->setAttribute("currentPage", currentPage.load(std::memory_order_acquire));
+
+    // FIX: XML Save Support
+    uiXml->setAttribute("activeSection", activeSection.load(std::memory_order_acquire));
+
     uiXml->setAttribute("themeIdx", themeIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("footerTab", footerTabIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("uiScale", static_cast<double>(uiScale.load(std::memory_order_acquire)));
@@ -369,6 +379,10 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         activePatternIndex.store(uiXml->getIntAttribute("activePatternIndex", 0), std::memory_order_release);
         currentInstrument.store(uiXml->getIntAttribute("currentInstrument", 0), std::memory_order_release);
         currentPage.store(uiXml->getIntAttribute("currentPage", 0), std::memory_order_release);
+
+        // FIX: XML Load Support
+        activeSection.store(uiXml->getIntAttribute("activeSection", -1), std::memory_order_release);
+
         themeIndex.store(uiXml->getIntAttribute("themeIdx", 0), std::memory_order_release);
         footerTabIndex.store(uiXml->getIntAttribute("footerTab", 0), std::memory_order_release);
         uiScale.store(static_cast<float>(uiXml->getDoubleAttribute("uiScale", 1.0)), std::memory_order_release);

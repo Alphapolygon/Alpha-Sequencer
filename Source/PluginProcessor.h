@@ -66,13 +66,20 @@ public:
     using MatrixSnapshot = StepData[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     const MatrixSnapshot& getActiveMatrix() const;
 
-    // --- GRANULAR NATIVE PATCH ENDPOINTS ---
+    // --- LOCK-FREE MUTATION ---
+    void commitMatrixChange(const std::function<void(MatrixSnapshot&)>& mutator);
+
     void setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive);
     void setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value);
     void setTrackStateNative(int tIdx, const juce::String& stateName, bool isEnabled);
     void setTrackMidiKeyNative(int tIdx, int midiNote);
-    void setTrackMidiChannelNative(int tIdx, int channel); // NEW endpoint
+    void setTrackMidiChannelNative(int tIdx, int channel);
     void clearTrackNative(int pIdx, int tIdx);
+
+    // --- GRANULAR UI ENDPOINTS ---
+    void setActivePatternNative(int pIdx);
+    void setSelectedTrackNative(int tIdx);
+    void setCurrentPageNative(int pageIdx);
 
     std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
@@ -83,6 +90,7 @@ public:
 
     std::atomic<int> currentInstrument{ 0 };
     std::atomic<int> currentPage{ 0 };
+    std::atomic<int> activeSection{ -1 };
     std::atomic<int> global16thNote{ -1 };
     std::atomic<int> activePatternIndex{ 0 };
 
@@ -92,7 +100,12 @@ public:
 
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
+
+    // FIX: Restored the UI State Tracking variables so C++ can compile cleanly
     std::atomic<uint32_t> uiStateVersion{ 1 };
+    uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
+    void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
+    void markUiStateDirty() noexcept;
 
     void setStepDataFromVar(const juce::var& stateVar);
     void updateUiMetadataFromVar(const juce::var& stateVar);
@@ -101,10 +114,6 @@ public:
     juce::var buildCurrentPatternStateVar() const;
     juce::var buildFullUiStateVarForEditor() const;
 
-    uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
-    void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
-    void markUiStateDirty() noexcept;
-
     std::atomic<int> droppedNotesCount{ 0 };
     std::atomic<int> droppedHWMsgs{ 0 };
 
@@ -112,6 +121,7 @@ private:
     mutable juce::CriticalSection writerLock;
     mutable juce::SpinLock hardwareLock;
 
+    std::atomic<int> activeMatrixIndex{ 0 };
     StepData sequencerMatrix[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
 
     std::shared_ptr<juce::MidiOutput> hardwareOutput;
@@ -123,7 +133,6 @@ private:
     std::atomic<float> pendingSwingNormalized{ -1.0f };
 
     int lastProcessedStep = -1;
-
     std::vector<ScheduledMidiEvent> eventQueue;
 
     juce::AbstractFifo hwFifo{ 4096 };

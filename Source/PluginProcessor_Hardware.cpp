@@ -115,8 +115,16 @@ namespace
                 else if (cc == 114)
                 {
                     const auto page = processor.currentPage.load(std::memory_order_acquire);
-                    if (value > 64)      processor.currentPage.store(juce::jmin(MiniLAB3Seq::kNumPages - 1, page + 1), std::memory_order_release);
-                    else if (value < 64) processor.currentPage.store(juce::jmax(0, page - 1), std::memory_order_release);
+                    int newPage = page;
+                    if (value > 64)      newPage = juce::jmin(MiniLAB3Seq::kNumPages - 1, page + 1);
+                    else if (value < 64) newPage = juce::jmax(0, page - 1);
+
+                    // FIX: Make sure activeSection follows the hardware accurately!
+                    if (newPage != page) {
+                        processor.currentPage.store(newPage, std::memory_order_release);
+                        processor.activeSection.store(newPage, std::memory_order_release);
+                        processor.markUiStateDirty();
+                    }
                     return true;
                 }
                 else if (cc == 115 && value == 127)
