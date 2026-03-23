@@ -124,6 +124,16 @@ export function useJuceBridge() {
         uiScale: overrides.uiScale ?? uiScale
     }), [patterns, activeIdx, themeIdx, selectedTrack, currentPage, footerTab, uiScale]);
 
+    // OPTIMIZATION: Lightweight metadata snapshot for UI saves
+    const buildUiMetaSnapshot = useCallback((overrides = {}) => ({
+        activeIdx: overrides.activeIdx ?? activeIdx,
+        themeIdx: overrides.themeIdx ?? themeIdx,
+        selectedTrack: overrides.selectedTrack ?? selectedTrack,
+        currentPage: overrides.currentPage ?? currentPage,
+        footerTab: overrides.footerTab ?? footerTab,
+        uiScale: overrides.uiScale ?? uiScale
+    }), [activeIdx, themeIdx, selectedTrack, currentPage, footerTab, uiScale]);
+
     const flushQueuedSnapshotSave = useCallback(async () => {
         if (!backendReady || !hasHydrated.current) return;
         if (saveInFlightRef.current) return;
@@ -337,15 +347,17 @@ export function useJuceBridge() {
         return () => { cancelled = true; };
     }, [backendReady, invokeNativeWithTimeout]);
 
+    // Keep the full build snapshot for major pattern changes if necessary
     useEffect(() => {
         if (!hasHydrated.current || !backendReady) return;
         queueUiSnapshotSave(buildUiSnapshot(), PATTERN_SAVE_DELAY_MS);
     }, [patterns, backendReady, buildUiSnapshot, queueUiSnapshotSave]);
 
+    // OPTIMIZATION: Only stringify/serialize the lightweight metadata for UI interactions
     useEffect(() => {
         if (!hasHydrated.current || !backendReady) return;
-        queueUiSnapshotSave(buildUiSnapshot(), UI_ONLY_SAVE_DELAY_MS);
-    }, [activeIdx, themeIdx, uiScale, selectedTrack, currentPage, footerTab, backendReady, buildUiSnapshot, queueUiSnapshotSave]);
+        queueUiSnapshotSave(buildUiMetaSnapshot(), UI_ONLY_SAVE_DELAY_MS);
+    }, [activeIdx, themeIdx, uiScale, selectedTrack, currentPage, footerTab, backendReady, buildUiMetaSnapshot, queueUiSnapshotSave]);
 
     const updateUiAndEngine = useCallback((newData) => {
         const currentPattern = patterns[activeIdx];

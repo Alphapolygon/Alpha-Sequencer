@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icons, MIDI_OPTIONS } from '../utils/constants';
 import { clone2D, hexToRgba, generateMidi } from '../utils/helpers';
 
@@ -43,39 +43,55 @@ export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, 
     const [openNoteMenuTrack, setOpenNoteMenuTrack] = useState(null);
     const { activeSteps, trackStates, midiKeys } = activeP.data;
 
-    // DIRECT DOM MANIPULATION FOR ZERO-CPU PLAYHEAD
+    // OPTIMIZATION: Cache the DOM nodes so we don't query the entire page every 16.6ms
+    const stepElsRef = useRef(Array.from({ length: 32 }, () => []));
+    const dotElsRef = useRef([]);
+
     useEffect(() => {
+        stepElsRef.current = Array.from({ length: 32 }, (_, i) =>
+            Array.from(document.querySelectorAll(`[data-step="${i}"]`))
+        );
+        dotElsRef.current = Array.from(document.querySelectorAll('[data-track-dot]'));
+
         let lastStep = -1;
+
         const handler = (e) => {
             const step = e.detail;
             if (lastStep === step) return;
-            
+
             if (lastStep >= 0) {
-                document.querySelectorAll(`[data-step="${lastStep}"]`).forEach(el => {
+                for (const el of stepElsRef.current[lastStep]) {
                     el.classList.remove('playhead-active');
                     if (el.dataset.active === 'true') {
-                        const dot = document.querySelector(`[data-track-dot="${el.dataset.track}"]`);
+                        const dot = dotElsRef.current.find(d => d.dataset.track === el.dataset.track);
                         if (dot) dot.classList.remove('dot-playing');
                     }
-                });
+                }
             }
+
             if (step >= 0) {
-                document.querySelectorAll(`[data-step="${step}"]`).forEach(el => {
+                for (const el of stepElsRef.current[step]) {
                     el.classList.add('playhead-active');
                     if (el.dataset.active === 'true') {
-                        const dot = document.querySelector(`[data-track-dot="${el.dataset.track}"]`);
+                        const dot = dotElsRef.current.find(d => d.dataset.track === el.dataset.track);
                         if (dot) dot.classList.add('dot-playing');
                     }
-                });
+                }
             }
+
             lastStep = step;
         };
+
         window.addEventListener('juce-playhead', handler);
         return () => {
-            if (lastStep >= 0) document.querySelectorAll(`[data-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+            if (lastStep >= 0) {
+                for (const el of stepElsRef.current[lastStep]) {
+                    el.classList.remove('playhead-active');
+                }
+            }
             window.removeEventListener('juce-playhead', handler);
         };
-    }, []);
+    }, [activeP, activeSection, selectedTrack]);
 
     return (
         <main className="flex-1 flex flex-col p-2 gap-[1px] overflow-y-auto custom-scrollbar theme-transition" style={{ backgroundColor: t.bg }}>
@@ -112,7 +128,7 @@ export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, 
                         className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
                         style={{ backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.10)' : 'transparent', borderColor: selectedTrack === tIdx ? t.border : 'transparent' }}>
                         <div className="w-52 flex items-center gap-2 pr-2 border-r h-full" style={{ borderColor: t.border }}>
-                            <div data-track-dot={tIdx} className="w-2 h-2 rounded-full track-dot" style={{ '--accent': trackColor }} />
+                            <div data-track-dot={tIdx} data-track={tIdx} className="w-2 h-2 rounded-full track-dot" style={{ '--accent': trackColor }} />
                             <span className="text-[10px] font-mono font-bold opacity-30 w-4">{String(tIdx + 1).padStart(2, '0')}</span>
                             <span className="text-[10px] font-black uppercase tracking-tight flex-1 truncate" style={{ color: selectedTrack === tIdx ? '#fff' : t.text }}>Track {tIdx + 1}</span>
                             <button onClick={(e) => { e.stopPropagation(); const n = clone2D(activeSteps); n[tIdx].fill(false); update({ activeSteps: n }); }} className="p-1 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" style={{ borderColor: t.border, color: t.text }}>CLR</button>

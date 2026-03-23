@@ -6,27 +6,43 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
     const isDrawing = useRef(false);
     const { activeSteps, repeats } = activeP.data;
 
-    // DIRECT DOM MANIPULATION FOR ZERO-CPU PLAYHEAD
+    // OPTIMIZATION: Cache DOM nodes to avoid 60Hz document querying
+    const autoStepElsRef = useRef(Array.from({ length: 32 }, () => []));
+
     useEffect(() => {
+        autoStepElsRef.current = Array.from({ length: 32 }, (_, i) =>
+            Array.from(document.querySelectorAll(`[data-auto-step="${i}"]`))
+        );
+
         let lastStep = -1;
+
         const handler = (e) => {
             const step = e.detail;
             if (lastStep === step) return;
             
             if (lastStep >= 0) {
-                document.querySelectorAll(`[data-auto-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+                for (const el of autoStepElsRef.current[lastStep]) {
+                    el.classList.remove('playhead-active');
+                }
             }
             if (step >= 0) {
-                document.querySelectorAll(`[data-auto-step="${step}"]`).forEach(el => el.classList.add('playhead-active'));
+                for (const el of autoStepElsRef.current[step]) {
+                    el.classList.add('playhead-active');
+                }
             }
             lastStep = step;
         };
+
         window.addEventListener('juce-playhead', handler);
         return () => {
-            if (lastStep >= 0) document.querySelectorAll(`[data-auto-step="${lastStep}"]`).forEach(el => el.classList.remove('playhead-active'));
+            if (lastStep >= 0) {
+                for (const el of autoStepElsRef.current[lastStep]) {
+                    el.classList.remove('playhead-active');
+                }
+            }
             window.removeEventListener('juce-playhead', handler);
         };
-    }, []);
+    }, [activeP, footerTab, selectedTrack, activeSection]);
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];
