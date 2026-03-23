@@ -1,0 +1,16 @@
+# C++ / CMake build folders
+build/
+cmake-build-*/
+out/
+
+# IDE specific files
+.vs/
+.idea/
+*.suo
+*.user
+
+# Node.js / Frontend
+node_modules/
+dist/
+.env
+
