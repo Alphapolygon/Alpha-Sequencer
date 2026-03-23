@@ -1,7 +1,6 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <array>
 #include <atomic>
 #include <vector>
 #include <algorithm>
@@ -65,8 +64,15 @@ public:
     std::atomic<bool> initialising{ true };
 
     using MatrixSnapshot = StepData[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
-    void modifySequencerState(const std::function<void(MatrixSnapshot&)>& modifier);
     const MatrixSnapshot& getActiveMatrix() const;
+
+    // --- GRANULAR NATIVE PATCH ENDPOINTS ---
+    void setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive);
+    void setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value);
+    void setTrackStateNative(int tIdx, const juce::String& stateName, bool isEnabled);
+    void setTrackMidiKeyNative(int tIdx, int midiNote);
+    void setTrackMidiChannelNative(int tIdx, int channel); // NEW endpoint
+    void clearTrackNative(int pIdx, int tIdx);
 
     std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
@@ -82,18 +88,18 @@ public:
 
     std::atomic<int> themeIndex{ 0 };
     std::atomic<int> footerTabIndex{ 0 };
-    std::atomic<float> uiScale{ 1.0f }; // New Scale Parameter
+    std::atomic<float> uiScale{ 1.0f };
 
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
     std::atomic<uint32_t> uiStateVersion{ 1 };
 
     void setStepDataFromVar(const juce::var& stateVar);
-    void updateUiMetadataFromVar(const juce::var& stateVar); // Fast Path for saves
+    void updateUiMetadataFromVar(const juce::var& stateVar);
 
     juce::var buildPatternDataVar(int patternIndex) const;
     juce::var buildCurrentPatternStateVar() const;
-    juce::var buildFullUiStateVarForEditor() const; // JSON parsing eliminated
+    juce::var buildFullUiStateVarForEditor() const;
 
     uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
     void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
@@ -106,7 +112,6 @@ private:
     mutable juce::CriticalSection writerLock;
     mutable juce::SpinLock hardwareLock;
 
-    std::atomic<int> activeMatrixIndex{ 0 };
     StepData sequencerMatrix[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
 
     std::shared_ptr<juce::MidiOutput> hardwareOutput;
@@ -118,9 +123,8 @@ private:
     std::atomic<float> pendingSwingNormalized{ -1.0f };
 
     int lastProcessedStep = -1;
-    static constexpr size_t MaxMidiEvents = 8192;
-    std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{};
-    size_t queuedEventCount = 0;
+
+    std::vector<ScheduledMidiEvent> eventQueue;
 
     juce::AbstractFifo hwFifo{ 4096 };
     std::array<HardwareMsg, 4096> hwQueue{};
