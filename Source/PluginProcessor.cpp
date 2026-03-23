@@ -60,7 +60,6 @@ MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
         for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
             updateTrackLength(p, t);
 
-    markUiStateDirty();
     requestLedRefresh();
     startTimerHz(60);
 
@@ -73,19 +72,22 @@ MiniLAB3StepSequencerAudioProcessor::~MiniLAB3StepSequencerAudioProcessor()
     resetHardwareState();
 }
 
-void MiniLAB3StepSequencerAudioProcessor::commitMatrixChange(const std::function<void(MatrixSnapshot&)>& mutator) {
+void MiniLAB3StepSequencerAudioProcessor::commitTrackChange(int pIdx, int tIdx, const std::function<void(StepData*)>& mutator) {
     const juce::ScopedLock lock(writerLock);
     int active = activeMatrixIndex.load(std::memory_order_acquire);
     int inactive = 1 - active;
 
-    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
-        for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
-            for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s)
-                sequencerMatrix[inactive][p][t][s] = sequencerMatrix[active][p][t][s];
+    for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) {
+        sequencerMatrix[inactive][pIdx][tIdx][s] = sequencerMatrix[active][pIdx][tIdx][s];
+    }
 
-    mutator(sequencerMatrix[inactive]);
+    mutator(sequencerMatrix[inactive][pIdx][tIdx]);
 
     activeMatrixIndex.store(inactive, std::memory_order_release);
+
+    for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) {
+        sequencerMatrix[active][pIdx][tIdx][s] = sequencerMatrix[inactive][pIdx][tIdx][s];
+    }
 }
 
 const MiniLAB3StepSequencerAudioProcessor::MatrixSnapshot& MiniLAB3StepSequencerAudioProcessor::getActiveMatrix() const {
@@ -93,26 +95,26 @@ const MiniLAB3StepSequencerAudioProcessor::MatrixSnapshot& MiniLAB3StepSequencer
 }
 
 void MiniLAB3StepSequencerAudioProcessor::setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive) {
-    commitMatrixChange([=](MatrixSnapshot& m) { m[pIdx][tIdx][sIdx].isActive = isActive; });
+    commitTrackChange(pIdx, tIdx, [=](StepData* track) { track[sIdx].isActive = isActive; });
     updateTrackLength(pIdx, tIdx);
     requestLedRefresh();
 }
 
 void MiniLAB3StepSequencerAudioProcessor::setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& param, float value) {
-    commitMatrixChange([=](MatrixSnapshot& m) {
-        if (param == "velocities") m[pIdx][tIdx][sIdx].velocity = value;
-        else if (param == "gates") m[pIdx][tIdx][sIdx].gate = value;
-        else if (param == "probabilities") m[pIdx][tIdx][sIdx].probability = value;
-        else if (param == "shifts") m[pIdx][tIdx][sIdx].shift = value;
-        else if (param == "swings") m[pIdx][tIdx][sIdx].swing = value;
-        else if (param == "repeats") m[pIdx][tIdx][sIdx].repeats = static_cast<int>(value);
+    commitTrackChange(pIdx, tIdx, [=](StepData* track) {
+        if (param == "velocities") track[sIdx].velocity = value;
+        else if (param == "gates") track[sIdx].gate = value;
+        else if (param == "probabilities") track[sIdx].probability = value;
+        else if (param == "shifts") track[sIdx].shift = value;
+        else if (param == "swings") track[sIdx].swing = value;
+        else if (param == "repeats") track[sIdx].repeats = static_cast<int>(value);
         });
     requestLedRefresh();
 }
 
 void MiniLAB3StepSequencerAudioProcessor::clearTrackNative(int pIdx, int tIdx) {
-    commitMatrixChange([=](MatrixSnapshot& m) {
-        for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) m[pIdx][tIdx][s].isActive = false;
+    commitTrackChange(pIdx, tIdx, [](StepData* track) {
+        for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) track[s].isActive = false;
         });
     updateTrackLength(pIdx, tIdx);
     requestLedRefresh();
@@ -205,10 +207,11 @@ void MiniLAB3StepSequencerAudioProcessor::applyPendingParameterUpdates()
     }
 }
 
-// FIX: Restored the implementation for the UI state flag so the compiler passes
-void MiniLAB3StepSequencerAudioProcessor::markUiStateDirty() noexcept
-{
-    uiStateVersion.fetch_add(1, std::memory_order_relaxed);
+void MiniLAB3StepSequencerAudioProcessor::pushUiPatch(const UiPatchEvent& ev) {
+    auto writeHandle = uiPatchFifo.write(1);
+    if (writeHandle.blockSize1 > 0) {
+        uiPatchQueue[writeHandle.startIndex1] = ev;
+    }
 }
 
 void MiniLAB3StepSequencerAudioProcessor::releaseResources() {}

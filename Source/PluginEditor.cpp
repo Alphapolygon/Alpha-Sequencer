@@ -90,13 +90,11 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
 {
     addAndMakeVisible(webComponent);
 
-    // FIX: Make the window natively resizable and strictly lock the aspect ratio
     setResizable(true, true);
     if (auto* constrainer = getConstrainer()) {
         constrainer->setFixedAspectRatio(1460.0 / 1024.0);
     }
 
-    // Limits range from ~50% scale to ~200% scale
     setResizeLimits(730, 512, 2920, 2048);
 
     const float initialScale = audioProcessor.uiScale.load(std::memory_order_acquire);
@@ -122,6 +120,7 @@ void MiniLAB3StepSequencerAudioProcessorEditor::resized() {
 void MiniLAB3StepSequencerAudioProcessorEditor::timerCallback() {
     if (!isUiConnected.load(std::memory_order_acquire)) return;
     pushPlaybackStateIfChanged();
+    pushHardwarePatches(); // Execute hardware queue drainer
 }
 
 void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged() {
@@ -145,5 +144,50 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged() {
         stateObj->setProperty("droppedHWMsgs", droppedHWMsgs);
 
         webComponent.emitEventIfBrowserIsVisible("playbackState", juce::var(stateObj.get()));
+    }
+}
+
+void MiniLAB3StepSequencerAudioProcessorEditor::pushEngineStateIfChanged() {
+    // Deprecated. Left for signature compatibility, but bypassed entirely.
+}
+
+void MiniLAB3StepSequencerAudioProcessorEditor::pushHardwarePatches() {
+    auto numReady = audioProcessor.uiPatchFifo.getNumReady();
+    if (numReady == 0) return;
+
+    juce::Array<juce::var> patches;
+    auto readHandle = audioProcessor.uiPatchFifo.read(numReady);
+
+    auto processItem = [&](int idx) {
+        const auto& ev = audioProcessor.uiPatchQueue[idx];
+        juce::DynamicObject::Ptr obj = new juce::DynamicObject();
+
+        if (ev.type == UiPatchType::StepActive) {
+            obj->setProperty("type", "stepActive");
+            obj->setProperty("p", ev.pIdx); obj->setProperty("t", ev.tIdx); obj->setProperty("s", ev.sIdx);
+            obj->setProperty("val", ev.bVal);
+        }
+        else if (ev.type == UiPatchType::StepParam) {
+            obj->setProperty("type", "stepParam");
+            obj->setProperty("p", ev.pIdx); obj->setProperty("t", ev.tIdx); obj->setProperty("s", ev.sIdx);
+            obj->setProperty("param", juce::String(ev.stringVal));
+            obj->setProperty("val", ev.fVal);
+        }
+        else if (ev.type == UiPatchType::PageChanged) {
+            obj->setProperty("type", "pageChanged");
+            obj->setProperty("val", ev.iVal);
+        }
+        else if (ev.type == UiPatchType::TrackChanged) {
+            obj->setProperty("type", "trackChanged");
+            obj->setProperty("val", ev.iVal);
+        }
+        patches.add(juce::var(obj.get()));
+        };
+
+    for (int i = 0; i < readHandle.blockSize1; ++i) processItem(readHandle.startIndex1 + i);
+    for (int i = 0; i < readHandle.blockSize2; ++i) processItem(readHandle.startIndex2 + i);
+
+    if (!patches.isEmpty()) {
+        webComponent.emitEventIfBrowserIsVisible("hardwarePatch", juce::var(patches));
     }
 }

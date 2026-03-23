@@ -20,6 +20,20 @@ struct StepData
     float swing = 0.0f;
 };
 
+// --- NEW: Granular UI Patch Event ---
+enum class UiPatchType { StepActive, StepParam, PageChanged, TrackChanged };
+
+struct UiPatchEvent {
+    UiPatchType type;
+    int pIdx = 0;
+    int tIdx = 0;
+    int sIdx = 0;
+    float fVal = 0.0f;
+    bool bVal = false;
+    int iVal = 0;
+    char stringVal[16] = { 0 };
+};
+
 class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
 
 class ControllerProfile

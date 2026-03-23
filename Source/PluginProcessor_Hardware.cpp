@@ -88,7 +88,14 @@ namespace
                 {
                     int newInstrument = (127 - value) / 8;
                     newInstrument = juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, newInstrument);
-                    processor.currentInstrument.store(newInstrument, std::memory_order_release);
+                    if (newInstrument != processor.currentInstrument.load(std::memory_order_acquire)) {
+                        processor.currentInstrument.store(newInstrument, std::memory_order_release);
+
+                        UiPatchEvent patch;
+                        patch.type = UiPatchType::TrackChanged;
+                        patch.iVal = newInstrument;
+                        processor.pushUiPatch(patch);
+                    }
                     return true;
                 }
                 else if (cc == 74 || cc == 71 || cc == 76 || cc == 77 || cc == 93 || cc == 18 || cc == 19 || cc == 16)
@@ -106,8 +113,15 @@ namespace
                         const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
 
                         if (processor.getActiveMatrix()[pIdx][instrument][step].isActive) {
-                            processor.setStepParameterNative(pIdx, instrument, step, "velocities", value / 127.0f);
-                            processor.markUiStateDirty();
+                            float newVal = value / 127.0f;
+                            processor.setStepParameterNative(pIdx, instrument, step, "velocities", newVal);
+
+                            UiPatchEvent patch;
+                            patch.type = UiPatchType::StepParam;
+                            patch.pIdx = pIdx; patch.tIdx = instrument; patch.sIdx = step;
+                            juce::String("velocities").copyToUTF8(patch.stringVal, 15);
+                            patch.fVal = newVal;
+                            processor.pushUiPatch(patch);
                         }
                         return true;
                     }
@@ -119,11 +133,14 @@ namespace
                     if (value > 64)      newPage = juce::jmin(MiniLAB3Seq::kNumPages - 1, page + 1);
                     else if (value < 64) newPage = juce::jmax(0, page - 1);
 
-                    // FIX: Make sure activeSection follows the hardware accurately!
                     if (newPage != page) {
                         processor.currentPage.store(newPage, std::memory_order_release);
                         processor.activeSection.store(newPage, std::memory_order_release);
-                        processor.markUiStateDirty();
+
+                        UiPatchEvent patch;
+                        patch.type = UiPatchType::PageChanged;
+                        patch.iVal = newPage;
+                        processor.pushUiPatch(patch);
                     }
                     return true;
                 }
@@ -135,8 +152,13 @@ namespace
 
                     for (int step = page * MiniLAB3Seq::kPadsPerPage; step < (page * MiniLAB3Seq::kPadsPerPage) + MiniLAB3Seq::kPadsPerPage; ++step) {
                         processor.setStepActiveNative(pIdx, instrument, step, false);
+
+                        UiPatchEvent patch;
+                        patch.type = UiPatchType::StepActive;
+                        patch.pIdx = pIdx; patch.tIdx = instrument; patch.sIdx = step;
+                        patch.bVal = false;
+                        processor.pushUiPatch(patch);
                     }
-                    processor.markUiStateDirty();
                     return true;
                 }
             }
@@ -152,11 +174,25 @@ namespace
                     const bool currentState = processor.getActiveMatrix()[pIdx][instrument][step].isActive;
 
                     processor.setStepActiveNative(pIdx, instrument, step, !currentState);
+
+                    UiPatchEvent patchActive;
+                    patchActive.type = UiPatchType::StepActive;
+                    patchActive.pIdx = pIdx; patchActive.tIdx = instrument; patchActive.sIdx = step;
+                    patchActive.bVal = !currentState;
+                    processor.pushUiPatch(patchActive);
+
                     if (!currentState) {
-                        processor.setStepParameterNative(pIdx, instrument, step, "velocities", msg.getFloatVelocity());
+                        float vel = msg.getFloatVelocity();
+                        processor.setStepParameterNative(pIdx, instrument, step, "velocities", vel);
+
+                        UiPatchEvent patchVel;
+                        patchVel.type = UiPatchType::StepParam;
+                        patchVel.pIdx = pIdx; patchVel.tIdx = instrument; patchVel.sIdx = step;
+                        juce::String("velocities").copyToUTF8(patchVel.stringVal, 15);
+                        patchVel.fVal = vel;
+                        processor.pushUiPatch(patchVel);
                     }
 
-                    processor.markUiStateDirty();
                     return true;
                 }
             }
@@ -320,7 +356,6 @@ void MiniLAB3StepSequencerAudioProcessor::handleMidiInput(const juce::MidiMessag
     if (localProfile) {
         if (localProfile->handleMidiInput(msg, *this)) {
             requestLedRefresh();
-            markUiStateDirty();
         }
     }
 

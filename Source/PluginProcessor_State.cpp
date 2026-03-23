@@ -141,7 +141,7 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
             updateTrackLength(p, track);
 
     requestLedRefresh();
-    markUiStateDirty();
+    
 }
 
 juce::var MiniLAB3StepSequencerAudioProcessor::buildPatternDataVar(int patternIndex) const
@@ -399,6 +399,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
     }
 
     requestLedRefresh();
-    markUiStateDirty();
+  
     initialising.store(false, std::memory_order_release);
 }

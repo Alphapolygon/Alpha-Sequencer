@@ -16,6 +16,9 @@ private:
     void pushPlaybackStateIfChanged();
     void pushEngineStateIfChanged();
 
+    // --- NEW: Drainer for the Hardware Queue ---
+    void pushHardwarePatches();
+
     MiniLAB3StepSequencerAudioProcessor& audioProcessor;
     juce::WebBrowserComponent webComponent;
 
@@ -24,11 +27,9 @@ private:
     int lastStep = -1;
     uint32_t lastUiStateVersion = 0;
 
-    // Telemetry cache
     int lastDroppedNotes = -1;
     int lastDroppedHWMsgs = -1;
 
-    // The critical flag that prevents the timer from breaking the JS bridge
     std::atomic<bool> isUiConnected{ false };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MiniLAB3StepSequencerAudioProcessorEditor)

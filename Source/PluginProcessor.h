@@ -66,8 +66,7 @@ public:
     using MatrixSnapshot = StepData[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     const MatrixSnapshot& getActiveMatrix() const;
 
-    // --- LOCK-FREE MUTATION ---
-    void commitMatrixChange(const std::function<void(MatrixSnapshot&)>& mutator);
+    void commitTrackChange(int pIdx, int tIdx, const std::function<void(StepData*)>& mutator);
 
     void setStepActiveNative(int pIdx, int tIdx, int sIdx, bool isActive);
     void setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value);
@@ -76,7 +75,6 @@ public:
     void setTrackMidiChannelNative(int tIdx, int channel);
     void clearTrackNative(int pIdx, int tIdx);
 
-    // --- GRANULAR UI ENDPOINTS ---
     void setActivePatternNative(int pIdx);
     void setSelectedTrackNative(int tIdx);
     void setCurrentPageNative(int pageIdx);
@@ -85,7 +83,6 @@ public:
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     std::atomic<int> trackLengths[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
-
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 
     std::atomic<int> currentInstrument{ 0 };
@@ -101,12 +98,6 @@ public:
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
 
-    // FIX: Restored the UI State Tracking variables so C++ can compile cleanly
-    std::atomic<uint32_t> uiStateVersion{ 1 };
-    uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
-    void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
-    void markUiStateDirty() noexcept;
-
     void setStepDataFromVar(const juce::var& stateVar);
     void updateUiMetadataFromVar(const juce::var& stateVar);
 
@@ -116,6 +107,11 @@ public:
 
     std::atomic<int> droppedNotesCount{ 0 };
     std::atomic<int> droppedHWMsgs{ 0 };
+
+    // --- NEW: Lock-Free UI Event Queue ---
+    void pushUiPatch(const UiPatchEvent& ev);
+    juce::AbstractFifo uiPatchFifo{ 1024 };
+    std::array<UiPatchEvent, 1024> uiPatchQueue{};
 
 private:
     mutable juce::CriticalSection writerLock;
