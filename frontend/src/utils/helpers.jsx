@@ -36,8 +36,6 @@ export const createEmptyPattern = (name) => ({
         swings: Array(16).fill(0).map(()=>Array(32).fill(0)),
         repeats: Array(16).fill(1).map(()=>Array(32).fill(1)),
         midiKeys: Array(16).fill(0).map((_,i)=>midiToNoteName(36 + i)),
-        
-        // ADDED: Default MIDI Channel property (Channel 1)
         trackStates: Array(16).fill(0).map(()=>({mute:false, solo:false, midiChannel: 1})),
     }
 });
@@ -45,7 +43,7 @@ export const createEmptyPattern = (name) => ({
 export const normalizeLoadedState = (savedState) => {
     const defaultState = {
         patterns: PATTERN_LABELS.map(label => createEmptyPattern(`Pattern ${label}`)),
-        activeIdx: 0, themeIdx: 0, selectedTrack: 0, currentPage: 0, footerTab: 'Velocity', uiScale: 1.0
+        activeIdx: 0, themeIdx: 0, selectedTrack: 0, currentPage: 0, activeSection: -1, footerTab: 'Velocity', uiScale: 1.0
     };
     if (!savedState) return defaultState;
     try {
@@ -57,6 +55,7 @@ export const normalizeLoadedState = (savedState) => {
             themeIdx: parsed.themeIdx ?? 0,
             selectedTrack: parsed.selectedTrack ?? 0,
             currentPage: parsed.currentPage ?? 0,
+            activeSection: parsed.activeSection ?? -1,
             footerTab: parsed.footerTab ?? 'Velocity',
             uiScale: parsed.uiScale ?? 1.0
         };
@@ -73,16 +72,14 @@ export const generateMidi = (patternData, bpm, trackIdx = null) => {
 
     const mpqn = Math.round(60000000 / (bpm || 120));
     const tempoTrack = [
-        0x4d, 0x54, 0x72, 0x6b, // MTrk
-        0x00, 0x00, 0x00, 0x0b, // Length
-        0x00, 0xff, 0x51, 0x03, (mpqn >> 16) & 0xff, (mpqn >> 8) & 0xff, mpqn & 0xff, // Tempo
-        0x00, 0xff, 0x2f, 0x00  // End of track
+        0x4d, 0x54, 0x72, 0x6b, 
+        0x00, 0x00, 0x00, 0x0b, 
+        0x00, 0xff, 0x51, 0x03, (mpqn >> 16) & 0xff, (mpqn >> 8) & 0xff, mpqn & 0xff, 
+        0x00, 0xff, 0x2f, 0x00  
     ];
 
     const makeTrack = (idx) => {
         const note = noteNameToMidi(midiKeys[idx]);
-        
-        // FIX: Extract channel from UI State (0-15 hex encoding)
         const channel = (trackStates[idx].midiChannel || 1) - 1;
         const noteOnMsg = 0x90 | channel;
         const noteOffMsg = 0x80 | channel;
@@ -101,8 +98,6 @@ export const generateMidi = (patternData, bpm, trackIdx = null) => {
             for(let i=0; i<r; i++) {
                 const on = Math.max(0, Math.round(start + (i*interval)));
                 const off = Math.max(on + 1, Math.round(on + (interval*g))); 
-                
-                // Write with correct MIDI Channel bits
                 events.push({t:on,type:noteOnMsg,n:note,v:v},{t:off,type:noteOffMsg,n:note,v:0});
             }
         });

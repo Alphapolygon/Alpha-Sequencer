@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Header({ t, bpm, isPlaying, activeSection, setActiveSection, setCurrentPage, activeP, syncPatternToEngine }) {
+export default function Header({ t, bpm, isPlaying, activeSection, bridge }) {
     return (
         <header className="flex items-center justify-between px-6 py-2 border-b theme-transition shadow-lg z-50 glass-panel" 
                 style={{ backgroundColor: t.panel, borderColor: t.border }}>
@@ -23,7 +23,7 @@ export default function Header({ t, bpm, isPlaying, activeSection, setActiveSect
             </div>
 
             <div className="flex items-center gap-1 bg-black/30 p-1 rounded-lg border theme-transition" style={{ borderColor: t.border }}>
-                <button onClick={() => setActiveSection(-1)} 
+                <button onClick={() => bridge.setActiveSection(-1)} 
                         className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"
                         style={{ backgroundColor: activeSection === -1 ? t.accent : 'transparent', color: activeSection === -1 ? '#000' : t.text }}>
                     All
@@ -32,10 +32,9 @@ export default function Header({ t, bpm, isPlaying, activeSection, setActiveSect
                     <button
                         key={i}
                         onClick={() => {
-                            setActiveSection(i);
-                            setCurrentPage(i);
-                            // FIX: Send the current pattern data to safeguard against race conditions
-                            syncPatternToEngine(activeP.data, { currentPage: i });
+                            bridge.setActiveSection(i);
+                            // FIX: Use the granular native bridge endpoint
+                            bridge.changeCurrentPage(i);
                         }}
                         className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"
                         style={{ backgroundColor: activeSection === i ? t.accent : 'transparent', color: activeSection === i ? '#000' : t.text }}>

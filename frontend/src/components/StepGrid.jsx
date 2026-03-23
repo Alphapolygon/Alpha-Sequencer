@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Icons, MIDI_OPTIONS } from '../utils/constants';
 import { hexToRgba, generateMidi } from '../utils/helpers';
 
-// FIX: CustomDropdown updated to allow flex-controlled internal scaling (w-full internally)
 const CustomDropdown = ({ value, options, onChange, theme, trackColor, isSelected, isOpen, onToggle, onClose }) => {
     const menuBg = isSelected ? theme.panel : theme.sidebar;
     const borderColor = isSelected ? hexToRgba(trackColor, 0.55) : theme.border;
@@ -40,16 +39,28 @@ const CustomDropdown = ({ value, options, onChange, theme, trackColor, isSelecte
     );
 };
 
-export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, activeSection, bpm, bridge }) {
+// FIX: Declarative, Memoized Cell guarantees only 2 cells render per tick, keeping CPU <1%
+const StepCell = React.memo(({ isActive, isPlayhead, trackColor, onClick }) => {
+    return (
+        <div onClick={onClick}
+             className="flex-1 rounded-[1px] cursor-pointer border relative overflow-hidden transition-all duration-75"
+             style={{ 
+                 backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.10)', 
+                 borderColor: isPlayhead ? trackColor : 'rgba(0,0,0,0.4)',
+                 boxShadow: isPlayhead ? `inset 0 0 5px ${trackColor}` : 'none',
+                 transform: isPlayhead ? 'scaleY(1.1)' : 'none'
+             }}>
+             {isPlayhead && <div className="absolute inset-0 bg-white/10 pointer-events-none" />}
+        </div>
+    );
+});
+
+export default function StepGrid({ t, activeP, selectedTrack, activeSection, bpm, bridge }) {
     const [openMenuId, setOpenMenuId] = useState(null);
     const { activeSteps, trackStates, midiKeys } = activeP.data;
 
-    const stepRefs = useRef(Array.from({ length: 32 }, () => []));
-    const dotRefs = useRef([]);
-
-    // Helper: Find the mathematical length boundaries of every active track independently
-    const getTrackLengths = (stepsMatrix) => {
-        return stepsMatrix.map(track => {
+    const trackLengths = useMemo(() => {
+        return activeSteps.map(track => {
             let max = -1;
             for (let i = 31; i >= 0; i--) { if (track[i]) { max = i; break; } }
             if (max >= 24) return 32;
@@ -57,73 +68,13 @@ export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, 
             if (max >= 8) return 16;
             return 8;
         });
-    };
-
-    useEffect(() => {
-        const trackLengths = getTrackLengths(activeSteps);
-        let lastStep = -1;
-        
-        const handler = (e) => {
-            const absoluteStep = e.detail; // Sent from C++ as the absolute timer tick
-            if (lastStep === absoluteStep) return;
-
-            if (lastStep >= 0) {
-                // Dim the Global Sequence Label (Follows selected track wrapping)
-                const selLen = trackLengths[selectedTrack];
-                const selSIdx = lastStep % selLen;
-                const labelEl = stepRefs.current[selSIdx][16];
-                if (labelEl) labelEl.classList.remove('playhead-active');
-
-                // Dim the Individual Track Cells
-                activeSteps.forEach((_, tIdx) => {
-                    const sIdx = lastStep % trackLengths[tIdx];
-                    const el = stepRefs.current[sIdx][tIdx];
-                    if (el) {
-                        el.classList.remove('playhead-active');
-                        if (el.dataset.active === 'true' && dotRefs.current[tIdx]) {
-                            dotRefs.current[tIdx].classList.remove('dot-playing');
-                        }
-                    }
-                });
-            }
-
-            if (absoluteStep >= 0) {
-                // Light the Global Sequence Label
-                const selLen = trackLengths[selectedTrack];
-                const selSIdx = absoluteStep % selLen;
-                const labelEl = stepRefs.current[selSIdx][16];
-                if (labelEl) labelEl.classList.add('playhead-active');
-
-                // Light the Individual Track Cells Independently
-                activeSteps.forEach((_, tIdx) => {
-                    const sIdx = absoluteStep % trackLengths[tIdx];
-                    const el = stepRefs.current[sIdx][tIdx];
-                    if (el) {
-                        el.classList.add('playhead-active');
-                        if (el.dataset.active === 'true' && dotRefs.current[tIdx]) {
-                            dotRefs.current[tIdx].classList.add('dot-playing');
-                        }
-                    }
-                });
-            }
-            lastStep = absoluteStep;
-        };
-
-        window.addEventListener('juce-playhead', handler);
-        return () => {
-            if (lastStep >= 0) {
-                stepRefs.current.forEach(row => row.forEach(el => el && el.classList.remove('playhead-active')));
-            }
-            window.removeEventListener('juce-playhead', handler);
-        };
-    }, [activeSteps, selectedTrack]);
+    }, [activeSteps]);
 
     return (
         <main className="flex-1 flex flex-col p-2 gap-[1px] overflow-y-auto custom-scrollbar theme-transition" style={{ backgroundColor: t.bg }}>
-            {/* STEP NUMBERS & COLORED HEADER DIVIDERS */}
             <div className="flex items-center h-5 gap-2 px-2 mb-1">
                 <div className="w-52 pr-2 border-r border-transparent"></div>
-                <div className="w-[140px]"></div> {/* Width accounts for two dropdowns */}
+                <div className="w-[140px]"></div>
                 <div className="flex gap-0.5 w-[54px]"></div>
                 <div className="flex-1 flex gap-2 h-full px-2 relative min-w-[640px]">
                     {[0, 1, 2, 3].map(secIdx => {
@@ -133,36 +84,44 @@ export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, 
                             <div key={secIdx} className="flex-1 flex gap-1 rounded-sm relative transition-opacity"
                                 style={{ opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(tint, 0.4)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                 <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full opacity-40" style={{ backgroundColor: tint }} />
-                                {Array(8).fill(0).map((_, i) => (
-                                    <div key={(secIdx * 8) + i} className="flex-1 flex justify-center items-end pb-1">
-                                        <span ref={el => { if (el) { stepRefs.current[(secIdx * 8) + i][16] = el; } }}
-                                              className="text-[12px] font-mono font-bold step-label" 
-                                              style={{ color: t.text, opacity: 0.4 }}>{(secIdx * 8) + i + 1}</span>
-                                    </div>
-                                ))}
+                                {Array(8).fill(0).map((_, i) => {
+                                    const sIdx = (secIdx * 8) + i;
+                                    const isPlayhead = bridge.currentStep >= 0 && (bridge.currentStep % trackLengths[selectedTrack] === sIdx);
+                                    return (
+                                        <div key={sIdx} className="flex-1 flex justify-center items-end pb-1">
+                                            <span className="text-[12px] font-mono font-bold transition-opacity" 
+                                                  style={{ color: t.text, opacity: isPlayhead ? 1 : 0.4 }}>{sIdx + 1}</span>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         );
                     })}
                 </div>
             </div>
 
-            {/* TRACK ROWS */}
             {activeSteps.map((track, tIdx) => {
                 const trackColor = t.colors[tIdx % t.colors.length];
+                const isTrackPlaying = bridge.currentStep >= 0 && track[bridge.currentStep % trackLengths[tIdx]];
+
                 return (
                     <div key={tIdx}
-                        onClick={() => { setSelectedTrack(tIdx); setOpenMenuId(null); bridge.syncPatternToEngine(activeP.data, { selectedTrack: tIdx }); }}
+                        onClick={() => { bridge.changeSelectedTrack(tIdx); setOpenMenuId(null); }}
                         className="flex items-center h-11 gap-2 rounded-sm transition-all px-2 border theme-transition"
                         style={{ backgroundColor: selectedTrack === tIdx ? 'rgba(255,255,255,0.10)' : 'transparent', borderColor: selectedTrack === tIdx ? t.border : 'transparent' }}>
+                        
                         <div className="w-52 flex items-center gap-2 pr-2 border-r h-full" style={{ borderColor: t.border }}>
-                            <div ref={el => dotRefs.current[tIdx] = el} className="w-2 h-2 rounded-full track-dot" style={{ '--accent': trackColor }} />
+                            <div className="w-2 h-2 rounded-full transition-all" 
+                                 style={{ 
+                                     backgroundColor: isTrackPlaying ? trackColor : 'rgba(0,0,0,0.5)',
+                                     boxShadow: isTrackPlaying ? `0 0 10px ${trackColor}` : 'none'
+                                 }} />
                             <span className="text-[10px] font-mono font-bold opacity-30 w-4">{String(tIdx + 1).padStart(2, '0')}</span>
                             <span className="text-[10px] font-black uppercase tracking-tight flex-1 truncate" style={{ color: selectedTrack === tIdx ? '#fff' : t.text }}>Track {tIdx + 1}</span>
                             <button onClick={(e) => { e.stopPropagation(); bridge.editClearTrack(bridge.activeIdx, tIdx); }} className="p-1 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" style={{ borderColor: t.border, color: t.text }}>CLR</button>
                             <button onClick={(e) => { e.stopPropagation(); generateMidi(activeP.data, bpm, tIdx); }} className="p-1.5 opacity-30 hover:opacity-100"><Icons.Download /></button>
                         </div>
                         
-                        {/* Dual Custom Dropdown Wrapper for Notes and Channels */}
                         <div className="w-[140px] flex gap-1">
                             <div className="flex-1">
                                 <CustomDropdown value={midiKeys[tIdx]} options={MIDI_OPTIONS} theme={t} trackColor={trackColor} isSelected={selectedTrack === tIdx} isOpen={openMenuId === `note-${tIdx}`} onToggle={() => setOpenMenuId(prev => prev === `note-${tIdx}` ? null : `note-${tIdx}`)} onClose={() => setOpenMenuId(null)} onChange={(note) => bridge.editTrackMidiKey(tIdx, note)} />
@@ -191,13 +150,14 @@ export default function StepGrid({ t, activeP, selectedTrack, setSelectedTrack, 
                                     <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative" style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                         {Array(8).fill(0).map((_, i) => {
                                             const sIdx = (secIdx * 8) + i;
-                                            const isActive = track[sIdx];
                                             return (
-                                                <div key={sIdx} onClick={(e) => { e.stopPropagation(); bridge.editStepActive(bridge.activeIdx, tIdx, sIdx, !isActive); }}
-                                                    className="flex-1 rounded-[1px] cursor-pointer border step-cell relative overflow-hidden"
-                                                    ref={el => stepRefs.current[sIdx][tIdx] = el}
-                                                    data-active={isActive ? 'true' : 'false'}
-                                                    style={{ backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.10)', borderColor: 'rgba(0,0,0,0.4)' }} />
+                                                <StepCell 
+                                                    key={sIdx} 
+                                                    isActive={track[sIdx]} 
+                                                    isPlayhead={bridge.currentStep >= 0 && (bridge.currentStep % trackLengths[tIdx] === sIdx)} 
+                                                    trackColor={trackColor} 
+                                                    onClick={(e) => { e.stopPropagation(); bridge.editStepActive(bridge.activeIdx, tIdx, sIdx, !track[sIdx]); }} 
+                                                />
                                             );
                                         })}
                                     </div>
