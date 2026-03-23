@@ -14,7 +14,7 @@ export function useJuceBridge() {
     const [activeIdx, setActiveIdx] = useState(0);
     const [isPlaying, setIsPlaying] = useState(false);
     const [bpm, setBpm] = useState(120);
-    const [currentStep, setCurrentStep] = useState(-1); // FIX: React Playhead State
+    const [currentStep, setCurrentStep] = useState(-1);
     const [activeSection, setActiveSection] = useState(-1);
     const [currentPage, setCurrentPage] = useState(0);
     const [selectedTrack, setSelectedTrack] = useState(0);
@@ -36,7 +36,6 @@ export function useJuceBridge() {
         Promise.resolve().then(() => fn(...args)).catch(console.error);
     }, []);
 
-    // --- Granular Pattern Mutators ---
     const editStepActive = useCallback((pIdx, tIdx, sIdx, isActive) => {
         setPatterns(prev => {
             const next = [...prev];
@@ -102,7 +101,6 @@ export function useJuceBridge() {
         if (backendReady) invokeNativeWithTimeout('clearTrack', [pIdx, tIdx]);
     }, [backendReady, invokeNativeWithTimeout]);
 
-    // --- Granular Metadata UI Events ---
     const changeActivePattern = useCallback((idx) => {
         setActiveIdx(idx);
         if (backendReady) invokeNativeWithTimeout('setActivePattern', [idx]);
@@ -136,14 +134,87 @@ export function useJuceBridge() {
     }, []);
 
     useEffect(() => {
-        if (!backendReady) return;
+        if (!backendReady || !window.__JUCE__?.backend || typeof window.__JUCE__.backend.addEventListener !== 'function') return;
+        
         const hPlayback = (e) => {
             if (e?.bpm) setBpm(Math.round(e.bpm));
             setIsPlaying(!!e?.isPlaying);
+            window.dispatchEvent(new CustomEvent('juce-playhead', { detail: (e?.isPlaying && e?.currentStep >= 0) ? e.currentStep : -1 }));
             setCurrentStep((e?.isPlaying && e?.currentStep >= 0) ? e.currentStep : -1);
         };
+        
+        const hEngine = (e) => {
+            if (!hasHydrated.current) return;
+            if (e?.patterns && Array.isArray(e.patterns)) {
+                setPatterns(e.patterns);
+                if (Number.isInteger(e.activeIdx)) setActiveIdx(e.activeIdx);
+                if (Number.isInteger(e.selectedTrack)) setSelectedTrack(e.selectedTrack);
+                if (Number.isInteger(e.currentPage)) setCurrentPage(e.currentPage);
+                if (Number.isInteger(e.activeSection)) setActiveSection(e.activeSection);
+                if (Number.isInteger(e.themeIdx)) setThemeIdx(e.themeIdx);
+                if (e.footerTab) setFooterTab(e.footerTab);
+            }
+        };
+
+        const hHardwarePatch = (e) => {
+            if (!Array.isArray(e)) return;
+            
+            let shouldUpdatePage = false;
+            let newPage = -1;
+            let shouldUpdateTrack = false;
+            let newTrack = -1;
+
+            setPatterns(prev => {
+                let next = [...prev];
+                let hasPatternChanges = false;
+                
+                e.forEach(patch => {
+                    if (patch.type === 'stepActive') {
+                        const {p, t, s, val} = patch;
+                        const nextActive = next[p].data.activeSteps.map(r => [...r]);
+                        nextActive[t] = [...nextActive[t]];
+                        nextActive[t][s] = val;
+                        next[p] = { ...next[p], data: { ...next[p].data, activeSteps: nextActive } };
+                        hasPatternChanges = true;
+                    } 
+                    else if (patch.type === 'stepParam') {
+                        const {p, t, s, param, val} = patch;
+                        const nextParam = next[p].data[param].map(r => [...r]);
+                        nextParam[t] = [...nextParam[t]];
+                        nextParam[t][s] = param === 'repeats' ? val : Math.round(val * 100);
+                        next[p] = { ...next[p], data: { ...next[p].data, [param]: nextParam } };
+                        hasPatternChanges = true;
+                    } 
+                    else if (patch.type === 'pageChanged') {
+                        shouldUpdatePage = true;
+                        newPage = patch.val;
+                    }
+                    else if (patch.type === 'trackChanged') {
+                        shouldUpdateTrack = true;
+                        newTrack = patch.val;
+                    }
+                });
+                return hasPatternChanges ? next : prev;
+            });
+
+            if (shouldUpdatePage) {
+                setCurrentPage(newPage);
+                setActiveSection(newPage);
+            }
+            if (shouldUpdateTrack) {
+                setSelectedTrack(newTrack);
+            }
+        };
+
         const l1 = window.__JUCE__.backend.addEventListener('playbackState', hPlayback);
-        return () => { window.__JUCE__.backend.removeEventListener(l1); };
+        const l2 = window.__JUCE__.backend.addEventListener('engineState', hEngine);
+        const l3 = window.__JUCE__.backend.addEventListener('hardwarePatch', hHardwarePatch);
+        
+        return () => { 
+            window.__JUCE__.backend.removeEventListener(l1); 
+            window.__JUCE__.backend.removeEventListener(l2); 
+            window.__JUCE__.backend.removeEventListener(l3); 
+        };
     }, [backendReady]);
 
     useEffect(() => {

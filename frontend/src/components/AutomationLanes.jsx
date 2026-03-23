@@ -1,14 +1,29 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { TAB_TO_KEY } from '../utils/constants';
 import { hexToRgba } from '../utils/helpers';
+
+// FIX: Declarative React.memo cell. Re-renders exclusively when isPlayhead or internal data changes.
+const AutoCell = React.memo(({ value, isActive, isPlayhead, trackColor, onDraw, onContextMenu }) => {
+    return (
+        <div className="flex-1 h-full flex flex-col justify-end group cursor-ns-resize relative"
+             onMouseDown={onDraw} onMouseMove={onDraw} onContextMenu={onContextMenu}>
+            <div className="w-full rounded-t-[1px] relative overflow-hidden transition-all duration-75"
+                 style={{ 
+                     height: `${value}%`, 
+                     backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.05)',
+                     borderTop: isPlayhead ? '2px solid #fff' : 'none',
+                     boxShadow: isPlayhead ? '0 0 15px rgba(255,255,255,0.4)' : 'none'
+                 }}>
+                 {isPlayhead && <div className="absolute inset-0 bg-white/20 pointer-events-none" />}
+            </div>
+        </div>
+    );
+});
 
 export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, bridge }) {
     const isDrawing = useRef(false);
     const { activeSteps, repeats } = activeP.data;
 
-    const autoStepElsRef = useRef(Array.from({ length: 32 }, () => []));
-
-    // Evaluate the wrapper length for the specific track being edited
     const trackLen = useMemo(() => {
         let max = -1;
         for (let i = 31; i >= 0; i--) { if (activeSteps[selectedTrack][i]) { max = i; break; } }
@@ -17,42 +32,6 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
         if (max >= 8) return 16;
         return 8;
     }, [activeSteps, selectedTrack]);
-
-    useEffect(() => {
-        autoStepElsRef.current = Array.from({ length: 32 }, (_, i) =>
-            Array.from(document.querySelectorAll(`[data-auto-step="${i}"]`))
-        );
-
-        let lastStep = -1;
-
-        const handler = (e) => {
-            const absoluteStep = e.detail;
-            if (lastStep === absoluteStep) return;
-            
-            if (lastStep >= 0) {
-                const sIdx = lastStep % trackLen;
-                for (const el of autoStepElsRef.current[sIdx]) {
-                    el.classList.remove('playhead-active');
-                }
-            }
-            if (absoluteStep >= 0) {
-                const sIdx = absoluteStep % trackLen;
-                for (const el of autoStepElsRef.current[sIdx]) {
-                    el.classList.add('playhead-active');
-                }
-            }
-            lastStep = absoluteStep;
-        };
-
-        window.addEventListener('juce-playhead', handler);
-        return () => {
-            if (lastStep >= 0) {
-                const sIdx = lastStep % trackLen;
-                for (const el of autoStepElsRef.current[sIdx]) el.classList.remove('playhead-active');
-            }
-            window.removeEventListener('juce-playhead', handler);
-        };
-    }, [trackLen, activeP, footerTab, selectedTrack, activeSection]);
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];
@@ -97,15 +76,17 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                             <div key={secIdx} className="flex-1 flex gap-1 h-full transition-opacity"
                                 style={{ opacity: isDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                 {activeP.data[TAB_TO_KEY[footerTab]][selectedTrack].slice(secIdx * 8, secIdx * 8 + 8).map((v, localIdx) => {
-                                    const i = secIdx * 8 + localIdx;
-                                    const isActive = activeSteps[selectedTrack][i];
+                                    const sIdx = secIdx * 8 + localIdx;
                                     return (
-                                        <div key={i} className="flex-1 h-full flex flex-col justify-end group cursor-ns-resize relative"
-                                            onMouseDown={(e) => handleDraw(i, e)} onMouseMove={(e) => handleDraw(i, e)} onContextMenu={(e) => handleDraw(i, e)}>
-                                            <div className="w-full rounded-t-[1px] relative auto-cell overflow-hidden"
-                                                data-auto-step={i}
-                                                style={{ height: `${v}%`, backgroundColor: isActive ? t.colors[selectedTrack % t.colors.length] : 'rgba(255,255,255,0.05)', borderTop: 'none', boxShadow: 'none' }} />
-                                        </div>
+                                        <AutoCell 
+                                            key={sIdx}
+                                            value={v}
+                                            isActive={activeSteps[selectedTrack][sIdx]}
+                                            isPlayhead={bridge.currentStep >= 0 && (bridge.currentStep % trackLen === sIdx)}
+                                            trackColor={t.colors[selectedTrack % t.colors.length]}
+                                            onDraw={(e) => handleDraw(sIdx, e)}
+                                            onContextMenu={(e) => handleDraw(sIdx, e)}
+                                        />
                                     );
                                 })}
                             </div>
