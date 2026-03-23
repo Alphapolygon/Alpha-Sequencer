@@ -2,9 +2,8 @@
 Alpha Sequencer is a 16-track step sequencer VST3 built specifically for the Arturia MiniLab 3. It bridges a React-based user interface with a low-latency C++ engine to provide expanded sequencing capabilities not found in the default hardware.  
 
 ## ☕ Support the Project
-This plugin was developed to give the MiniLab/KeyLab features that Arturia left out. 
-It took dozens of hours of MIDI reverse-engineering to get the pad lights working!
-Found it useful? Buying me a coffee to support further updates (like minilab mk2m support or and other Arturia models support)
+If this tool has improved your workflow, saved you from buying extra hardware, or helped you make music, please consider supporting its continued development. 
+Your support helps keep the project alive, covers maintenance costs, and funds future ports to other Arturia devices)
 
 
 [![Ko-Fi](https://img.shields.io/badge/Ko--fi-F16061?style=for-the-badge&logo=ko-fi&logoColor=white)](https://ko-fi.com/alphapolygon)
