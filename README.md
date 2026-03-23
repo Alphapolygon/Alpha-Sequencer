@@ -80,6 +80,22 @@ updateCPlusPlusState(json): Updates the C++ engine with new step or timing data.
 
 uiReadyForEngineState(): Notifies the engine that the UI is ready to receive hardware updates.
 
+## Build the Frontend UI: 
+cd frontend
+
+npm install
+
+npm run build
+
+
+## Generate the IDE Project:
+
+Open MiniLAB3 Step Sequencer.jucer in the Projucer.
+
+Click "Save and Open in IDE".
+
+Compile the VST3/Standalone application from Visual Studio or Xcode.
+
 
 
 
