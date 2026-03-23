@@ -13,11 +13,10 @@ export default function App() {
         patterns, activeIdx, isPlaying, bpm, activeSection,
         currentPage, selectedTrack, footerTab, themeIdx, uiScale,
         setActiveIdx, setActiveSection, setCurrentPage, setSelectedTrack,
-        setFooterTab, setThemeIdx, updateUiScale, updateUiAndEngine, syncPatternToEngine,
+        setFooterTab, setThemeIdx, updateUiScale, syncPatternToEngine,
         backendReady, uiReady, backendStatus, debugInfo
     } = bridge;
 
-    // Safely grab the theme early
     const t = THEMES[themeIdx] || THEMES[0];
 
     useEffect(() => {
@@ -39,32 +38,23 @@ export default function App() {
     const activeP = patterns[activeIdx];
 
     return (
-        // FIX: Abandoned zoom. Uses GPU Transform on a strict, absolute canvas.
         <div className="flex flex-col font-sans select-none overflow-hidden theme-transition"
              style={{ 
-                 backgroundColor: t.bg, 
-                 color: t.text, 
-                 '--theme-accent': t.accent, 
-                 width: '1460px', 
-                 height: '1024px', 
-                 transform: `scale(${uiScale})`,
-                 transformOrigin: 'top left',
-                 position: 'absolute',
-                 top: 0,
-                 left: 0
+                 backgroundColor: t.bg, color: t.text, '--theme-accent': t.accent, 
+                 width: '1460px', height: '1024px', 
+                 transform: `scale(${uiScale})`, transformOrigin: 'top left',
+                 position: 'absolute', top: 0, left: 0
              }}
              onContextMenu={(e) => e.preventDefault()}>
 
-            <Header t={t} bpm={bpm} isPlaying={isPlaying} activeSection={activeSection}
-                    setActiveSection={setActiveSection} setCurrentPage={setCurrentPage}
-                    activeP={activeP} syncPatternToEngine={syncPatternToEngine} />
+            <Header t={t} bpm={bpm} isPlaying={isPlaying} activeSection={activeSection} setActiveSection={setActiveSection} setCurrentPage={setCurrentPage} activeP={activeP} syncPatternToEngine={syncPatternToEngine} />
 
             <div className="flex-1 flex overflow-hidden">
-                <StepGrid t={t} activeP={activeP} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} update={updateUiAndEngine} syncPatternToEngine={syncPatternToEngine} />
+                <StepGrid t={t} activeP={activeP} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} bridge={bridge} />
                 <Sidebar t={t} activeIdx={activeIdx} setActiveIdx={setActiveIdx} themeIdx={themeIdx} setThemeIdx={setThemeIdx} uiScale={uiScale} setUiScale={updateUiScale} activeP={activeP} bpm={bpm} patterns={patterns} syncPatternToEngine={syncPatternToEngine} />
             </div>
 
-            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} update={updateUiAndEngine} />
+            <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} bridge={bridge} />
         </div>
     );
 }

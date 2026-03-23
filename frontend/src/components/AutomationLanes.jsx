@@ -1,13 +1,22 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import { TAB_TO_KEY } from '../utils/constants';
-import { clone2D, hexToRgba } from '../utils/helpers';
+import { hexToRgba } from '../utils/helpers';
 
-export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, update }) {
+export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, bridge }) {
     const isDrawing = useRef(false);
     const { activeSteps, repeats } = activeP.data;
 
-    // OPTIMIZATION: Cache DOM nodes to avoid 60Hz document querying
     const autoStepElsRef = useRef(Array.from({ length: 32 }, () => []));
+
+    // Evaluate the wrapper length for the specific track being edited
+    const trackLen = useMemo(() => {
+        let max = -1;
+        for (let i = 31; i >= 0; i--) { if (activeSteps[selectedTrack][i]) { max = i; break; } }
+        if (max >= 24) return 32;
+        if (max >= 16) return 24;
+        if (max >= 8) return 16;
+        return 8;
+    }, [activeSteps, selectedTrack]);
 
     useEffect(() => {
         autoStepElsRef.current = Array.from({ length: 32 }, (_, i) =>
@@ -17,42 +26,40 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
         let lastStep = -1;
 
         const handler = (e) => {
-            const step = e.detail;
-            if (lastStep === step) return;
+            const absoluteStep = e.detail;
+            if (lastStep === absoluteStep) return;
             
             if (lastStep >= 0) {
-                for (const el of autoStepElsRef.current[lastStep]) {
+                const sIdx = lastStep % trackLen;
+                for (const el of autoStepElsRef.current[sIdx]) {
                     el.classList.remove('playhead-active');
                 }
             }
-            if (step >= 0) {
-                for (const el of autoStepElsRef.current[step]) {
+            if (absoluteStep >= 0) {
+                const sIdx = absoluteStep % trackLen;
+                for (const el of autoStepElsRef.current[sIdx]) {
                     el.classList.add('playhead-active');
                 }
             }
-            lastStep = step;
+            lastStep = absoluteStep;
         };
 
         window.addEventListener('juce-playhead', handler);
         return () => {
             if (lastStep >= 0) {
-                for (const el of autoStepElsRef.current[lastStep]) {
-                    el.classList.remove('playhead-active');
-                }
+                const sIdx = lastStep % trackLen;
+                for (const el of autoStepElsRef.current[sIdx]) el.classList.remove('playhead-active');
             }
             window.removeEventListener('juce-playhead', handler);
         };
-    }, [activeP, footerTab, selectedTrack, activeSection]);
+    }, [trackLen, activeP, footerTab, selectedTrack, activeSection]);
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];
         if (e.type === 'contextmenu') {
             e.preventDefault();
             const defaultValues = { velocities: 100, gates: 75, probabilities: 100, shifts: 50, swings: 0 };
-            const next = [...activeP.data[key]];
-            next[selectedTrack] = [...next[selectedTrack]];
-            next[selectedTrack][sIdx] = defaultValues[key];
-            update({ [key]: next });
+            bridge.editStepParameter(bridge.activeIdx, selectedTrack, sIdx, key, defaultValues[key]);
             return;
         }
 
@@ -61,10 +68,7 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
         if ((isDrawing.current && e.buttons === 1) || (e.type === 'mousedown' && e.button === 0)) {
             const rect = e.currentTarget.getBoundingClientRect();
             const val = Math.round(Math.max(0, Math.min(100, 100 - ((e.clientY - rect.top) / rect.height) * 100)));
-            const next = [...activeP.data[key]];
-            next[selectedTrack] = [...next[selectedTrack]];
-            next[selectedTrack][sIdx] = val;
-            update({ [key]: next });
+            bridge.editStepParameter(bridge.activeIdx, selectedTrack, sIdx, key, val);
         }
     };
 
@@ -85,7 +89,6 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
             </div>
 
             <div className="flex-1 flex flex-col gap-4">
-                {/* MAIN AUTOMATION DRAW GRID */}
                 <div className="flex-1 flex gap-2 h-full py-1.5 px-2 relative border bg-black/40 rounded-xl" style={{ borderColor: t.border }}>
                     {[0, 1, 2, 3].map(secIdx => {
                         const isDimmed = activeSection !== -1 && activeSection !== secIdx;
@@ -110,7 +113,6 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                     })}
                 </div>
 
-                {/* RATCETING/REPEATS LANE */}
                 <div className="h-16 flex gap-2 px-2">
                     {[0, 1, 2, 3].map(secIdx => {
                         const isDimmed = activeSection !== -1 && activeSection !== secIdx;
@@ -123,7 +125,7 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                                     return (
                                         <div key={sIdx} className="flex-1 flex flex-col gap-[1px]">
                                             {[1, 2, 3, 4].map(val => (
-                                                <button key={val} onClick={() => { const n = clone2D(repeats); n[selectedTrack][sIdx] = val; update({ repeats: n }); }}
+                                                <button key={val} onClick={() => bridge.editStepParameter(bridge.activeIdx, selectedTrack, sIdx, 'repeats', val)}
                                                     className="flex-1 rounded-[1px] text-[7px] font-black transition-all border"
                                                     style={{ backgroundColor: c === val ? t.accent : 'rgba(255,255,255,0.05)', borderColor: c === val ? t.accent : t.border, color: c === val ? '#000' : hexToRgba(t.text, 0.4) }}>{val}</button>
                                             ))}
