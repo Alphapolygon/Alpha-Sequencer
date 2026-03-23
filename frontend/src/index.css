@@ -2,7 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-body { margin: 0; padding: 0; overflow-x: hidden; transition: background-color 0.5s ease; }
+/* FIX: Hard-kill native webview scrollbars entirely */
+html, body { 
+    margin: 0; 
+    padding: 0; 
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden !important; 
+}
+
+body { transition: background-color 0.5s ease; }
+
 .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #22262c; border-radius: 10px; }

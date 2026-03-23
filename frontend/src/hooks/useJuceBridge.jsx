@@ -7,7 +7,8 @@ const REQUIRED_NATIVE_FUNCTIONS = [
     'updateCPlusPlusState',
     'saveFullUiState',
     'requestInitialState',
-    'uiReadyForEngineState'
+    'uiReadyForEngineState',
+    'setWindowScale'
 ];
 
 const NATIVE_CALL_TIMEOUT_MS = {
@@ -15,6 +16,7 @@ const NATIVE_CALL_TIMEOUT_MS = {
     uiReadyForEngineState: 1500,
     updateCPlusPlusState: 1200,
     saveFullUiState: 1200,
+    setWindowScale: 500,
 };
 
 const ENGINE_SYNC_DELAY_MS = 75;
@@ -23,16 +25,6 @@ const PATTERN_SAVE_DELAY_MS = 2500;
 const SAVE_RETRY_DELAY_MS = 250;
 
 const wait = (ms) => new Promise(resolve => window.setTimeout(resolve, ms));
-
-export function usePlaybackStep() {
-    const [step, setStep] = useState(-1);
-    useEffect(() => {
-        const handler = e => setStep(e.detail);
-        window.addEventListener('juce-playhead', handler);
-        return () => window.removeEventListener('juce-playhead', handler);
-    }, []);
-    return step;
-}
 
 export function useJuceBridge() {
     const [patterns, setPatterns] = useState(PATTERN_LABELS.map(l => createEmptyPattern(`Pattern ${l}`)));
@@ -44,6 +36,7 @@ export function useJuceBridge() {
     const [selectedTrack, setSelectedTrack] = useState(0);
     const [footerTab, setFooterTab] = useState('Velocity');
     const [themeIdx, setThemeIdx] = useState(0);
+    const [uiScale, setUiScale] = useState(1.0);
 
     const [backendReady, setBackendReady] = useState(false);
     const [uiReady, setUiReady] = useState(false);
@@ -59,6 +52,7 @@ export function useJuceBridge() {
         saveFullUiState: null,
         requestInitialState: null,
         uiReadyForEngineState: null,
+        setWindowScale: null,
     });
 
     const saveInFlightRef = useRef(false);
@@ -126,8 +120,9 @@ export function useJuceBridge() {
         themeIdx: overrides.themeIdx ?? themeIdx,
         selectedTrack: overrides.selectedTrack ?? selectedTrack,
         currentPage: overrides.currentPage ?? currentPage,
-        footerTab: overrides.footerTab ?? footerTab
-    }), [patterns, activeIdx, themeIdx, selectedTrack, currentPage, footerTab]);
+        footerTab: overrides.footerTab ?? footerTab,
+        uiScale: overrides.uiScale ?? uiScale
+    }), [patterns, activeIdx, themeIdx, selectedTrack, currentPage, footerTab, uiScale]);
 
     const flushQueuedSnapshotSave = useCallback(async () => {
         if (!backendReady || !hasHydrated.current) return;
@@ -144,49 +139,26 @@ export function useJuceBridge() {
             lastSavedSnapshotJsonRef.current = snapshotJson;
         } catch (err) {
             console.error('saveFullUiState failed', err);
-
             if (!pendingSnapshotJsonRef.current) {
                 pendingSnapshotJsonRef.current = snapshotJson;
             }
         } finally {
             saveInFlightRef.current = false;
-
-            if (
-                pendingSnapshotJsonRef.current &&
-                pendingSnapshotJsonRef.current !== lastSavedSnapshotJsonRef.current
-            ) {
-                if (saveUiTimeout.current) {
-                    window.clearTimeout(saveUiTimeout.current);
-                }
-
-                saveUiTimeout.current = window.setTimeout(() => {
-                    flushQueuedSnapshotSave();
-                }, SAVE_RETRY_DELAY_MS);
+            if (pendingSnapshotJsonRef.current && pendingSnapshotJsonRef.current !== lastSavedSnapshotJsonRef.current) {
+                if (saveUiTimeout.current) window.clearTimeout(saveUiTimeout.current);
+                saveUiTimeout.current = window.setTimeout(() => flushQueuedSnapshotSave(), SAVE_RETRY_DELAY_MS);
             }
         }
     }, [backendReady, invokeNativeWithTimeout]);
 
     const queueUiSnapshotSave = useCallback((snapshot, delayMs) => {
         if (!backendReady || !hasHydrated.current) return;
-
         const snapshotJson = JSON.stringify(snapshot);
-
-        if (
-            snapshotJson === lastSavedSnapshotJsonRef.current ||
-            snapshotJson === pendingSnapshotJsonRef.current
-        ) {
-            return;
-        }
+        if (snapshotJson === lastSavedSnapshotJsonRef.current || snapshotJson === pendingSnapshotJsonRef.current) return;
 
         pendingSnapshotJsonRef.current = snapshotJson;
-
-        if (saveUiTimeout.current) {
-            window.clearTimeout(saveUiTimeout.current);
-        }
-
-        saveUiTimeout.current = window.setTimeout(() => {
-            flushQueuedSnapshotSave();
-        }, delayMs);
+        if (saveUiTimeout.current) window.clearTimeout(saveUiTimeout.current);
+        saveUiTimeout.current = window.setTimeout(() => flushQueuedSnapshotSave(), delayMs);
     }, [backendReady, flushQueuedSnapshotSave]);
 
     const syncPatternToEngine = useCallback((patternData, overrides = {}) => {
@@ -199,21 +171,22 @@ export function useJuceBridge() {
             currentPage: overrides.currentPage ?? currentPage
         });
 
-        if (payload === lastEnginePayloadRef.current) {
-            return;
-        }
-
+        if (payload === lastEnginePayloadRef.current) return;
         lastEnginePayloadRef.current = payload;
 
         invokeNativeWithTimeout('updateCPlusPlusState', [payload], NATIVE_CALL_TIMEOUT_MS.updateCPlusPlusState)
             .catch(err => {
                 console.error('updateCPlusPlusState failed', err);
-
-                if (lastEnginePayloadRef.current === payload) {
-                    lastEnginePayloadRef.current = '';
-                }
+                if (lastEnginePayloadRef.current === payload) lastEnginePayloadRef.current = '';
             });
     }, [backendReady, activeIdx, selectedTrack, currentPage, invokeNativeWithTimeout]);
+
+    const updateUiScale = useCallback((newScale) => {
+        setUiScale(newScale);
+        if (backendReady) {
+            invokeNativeWithTimeout('setWindowScale', [newScale], NATIVE_CALL_TIMEOUT_MS.setWindowScale).catch(console.error);
+        }
+    }, [backendReady, invokeNativeWithTimeout]);
 
     useEffect(() => {
         let cancelled = false;
@@ -221,21 +194,14 @@ export function useJuceBridge() {
         const initBackend = async () => {
             try {
                 let retries = 120;
-
                 while (!window.__JUCE__?.backend && retries > 0) {
-                    if (!cancelled) {
-                        setBackendStatus('Waiting for window.__JUCE__.backend...');
-                        setDebugInfo('JUCE backend container not injected yet.');
-                    }
+                    if (!cancelled) { setBackendStatus('Waiting for window.__JUCE__.backend...'); setDebugInfo('JUCE backend container not injected yet.'); }
                     await wait(50);
                     retries--;
                 }
 
                 if (!window.__JUCE__?.backend) {
-                    if (!cancelled) {
-                        setBackendStatus('Error: JUCE backend container never appeared.');
-                        setDebugInfo('window.__JUCE__.backend is missing.');
-                    }
+                    if (!cancelled) { setBackendStatus('Error: JUCE backend container never appeared.'); setDebugInfo('window.__JUCE__.backend is missing.'); }
                     return;
                 }
 
@@ -248,44 +214,27 @@ export function useJuceBridge() {
                 while (retries > 0) {
                     try {
                         resolveNativeFunctions();
-
-                        if (!backendSupportsEvents()) {
-                            throw new Error('JUCE backend event API is unavailable');
-                        }
+                        if (!backendSupportsEvents()) throw new Error('JUCE backend event API is unavailable');
 
                         if (!cancelled) {
                             setBackendReady(true);
                             setBackendStatus('JUCE bridge ready. Starting hydration...');
-                            setDebugInfo(`Resolved native functions via Juce.getNativeFunction: ${REQUIRED_NATIVE_FUNCTIONS.join(', ')}`);
+                            setDebugInfo(`Resolved native functions via Juce.getNativeFunction`);
                         }
                         return;
                     } catch (err) {
-                        if (!cancelled) {
-                            setBackendStatus('Waiting for JUCE native functions...');
-                            setDebugInfo(err.message);
-                        }
+                        if (!cancelled) { setBackendStatus('Waiting for JUCE native functions...'); setDebugInfo(err.message); }
                         await wait(50);
                         retries--;
                     }
                 }
-
-                if (!cancelled) {
-                    setBackendStatus('Error: JUCE native functions never became available.');
-                    setDebugInfo('Juce.getNativeFunction could not resolve the required bridge functions.');
-                }
             } catch (err) {
-                if (!cancelled) {
-                    setBackendStatus(`Init failed: ${err.message}`);
-                    setDebugInfo(err.stack || String(err));
-                }
+                if (!cancelled) { setBackendStatus(`Init failed: ${err.message}`); setDebugInfo(err.stack || String(err)); }
             }
         };
 
         initBackend();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => { cancelled = true; };
     }, [backendSupportsEvents, resolveNativeFunctions]);
 
     useEffect(() => {
@@ -294,11 +243,8 @@ export function useJuceBridge() {
         const handlePlaybackState = (event) => {
             if (event?.bpm) setBpm(Math.round(event.bpm));
             setIsPlaying(!!event?.isPlaying);
-            
             const step = (event?.isPlaying && event?.currentStep >= 0) ? event.currentStep : -1;
             window.dispatchEvent(new CustomEvent('juce-playhead', { detail: step }));
-            
-            // Optional: You can now access event.droppedNotes and event.droppedHWMsgs here if you want to build a diagnostic UI!
         };
 
         const listenerHandle = window.__JUCE__.backend.addEventListener('playbackState', handlePlaybackState);
@@ -311,20 +257,16 @@ export function useJuceBridge() {
         const handleEngineState = (event) => {
             if (!hasHydrated.current) return;
 
-            // FIX: Ingest the new fully-unified 3D Matrix state object from C++
             if (event?.patterns && Array.isArray(event.patterns)) {
                 setPatterns(event.patterns);
                 
                 if (Number.isInteger(event.activeIdx)) setActiveIdx(event.activeIdx);
                 if (Number.isInteger(event.selectedTrack)) setSelectedTrack(event.selectedTrack);
-                if (Number.isInteger(event.currentPage)) {
-                    setCurrentPage(event.currentPage);
-                    setActiveSection(event.currentPage);
-                }
+                if (Number.isInteger(event.currentPage)) { setCurrentPage(event.currentPage); setActiveSection(event.currentPage); }
                 if (Number.isInteger(event.themeIdx)) setThemeIdx(event.themeIdx);
                 if (event.footerTab) setFooterTab(event.footerTab);
+                if (Number.isFinite(event.uiScale)) setUiScale(event.uiScale);
             } 
-            // Fallback for V0 initial loads
             else if (event?.patternData) {
                 const enginePatternIndex = Number.isInteger(event.activePatternIndex) ? event.activePatternIndex : activeIdx;
                 setPatterns(prev => {
@@ -335,10 +277,7 @@ export function useJuceBridge() {
                 });
 
                 if (Number.isInteger(event.currentInstrument)) setSelectedTrack(event.currentInstrument);
-                if (Number.isInteger(event.currentPage)) {
-                    setCurrentPage(event.currentPage);
-                    setActiveSection(event.currentPage);
-                }
+                if (Number.isInteger(event.currentPage)) { setCurrentPage(event.currentPage); setActiveSection(event.currentPage); }
             }
         };
 
@@ -348,43 +287,22 @@ export function useJuceBridge() {
 
     useEffect(() => {
         if (!backendReady || hasHydrated.current) return;
-
         let cancelled = false;
 
         const hydrate = async () => {
             let loadedFromBackend = false;
             let normalized = normalizeLoadedState(null);
-            let readyNote = 'JUCE ready signal acknowledged.';
 
             try {
                 setBackendStatus('Calling requestInitialState...');
-                setDebugInfo('Awaiting initial UI snapshot from JUCE.');
-
                 const savedState = await invokeNativeWithTimeout('requestInitialState');
                 loadedFromBackend = true;
-
                 if (cancelled) return;
-
-                setBackendStatus('Initial state received. Applying snapshot...');
-
-                const parsedState = typeof savedState === 'string'
-                    ? (() => {
-                        try {
-                            return JSON.parse(savedState);
-                        } catch (err) {
-                            console.warn('requestInitialState returned non-JSON string', err);
-                            return savedState;
-                        }
-                    })()
-                    : savedState;
-
+                
+                const parsedState = typeof savedState === 'string' ? JSON.parse(savedState) : savedState;
                 normalized = normalizeLoadedState(parsedState);
             } catch (err) {
                 console.error('requestInitialState failed or timed out', err);
-                if (!cancelled) {
-                    setBackendStatus('Initial state unavailable. Falling back to defaults...');
-                    setDebugInfo(err.stack || String(err));
-                }
             }
 
             if (cancelled) return;
@@ -396,54 +314,27 @@ export function useJuceBridge() {
             setCurrentPage(normalized.currentPage);
             setActiveSection(normalized.currentPage);
             setFooterTab(normalized.footerTab);
+            setUiScale(normalized.uiScale || 1.0);
 
             lastSavedSnapshotJsonRef.current = JSON.stringify({
-                patterns: normalized.patterns,
-                activeIdx: normalized.activeIdx,
-                themeIdx: normalized.themeIdx,
-                selectedTrack: normalized.selectedTrack,
-                currentPage: normalized.currentPage,
-                footerTab: normalized.footerTab
+                patterns: normalized.patterns, activeIdx: normalized.activeIdx, themeIdx: normalized.themeIdx,
+                selectedTrack: normalized.selectedTrack, currentPage: normalized.currentPage,
+                footerTab: normalized.footerTab, uiScale: normalized.uiScale || 1.0
             });
 
             await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
             if (cancelled) return;
 
-            setBackendStatus('Calling uiReadyForEngineState...');
-            setDebugInfo(loadedFromBackend
-                ? 'Initial state applied. Notifying JUCE that the UI is live.'
-                : 'Using default UI state. Notifying JUCE that the UI is live.');
-
-            try {
-                await invokeNativeWithTimeout('uiReadyForEngineState');
-            } catch (err) {
-                console.warn('uiReadyForEngineState failed or timed out', err);
-                readyNote = `UI rendered, but uiReadyForEngineState did not confirm in time: ${err.message}`;
-            }
-
+            try { await invokeNativeWithTimeout('uiReadyForEngineState'); } catch (err) {}
             if (cancelled) return;
 
             hasHydrated.current = true;
             setUiReady(true);
             setBackendStatus('JUCE ready. UI hydrated.');
-            setDebugInfo(loadedFromBackend
-                ? `Initial state loaded. ${readyNote}`
-                : `Fell back to default UI state. ${readyNote}`);
         };
 
-        hydrate().catch((err) => {
-            console.error('JUCE hydration failed', err);
-            if (!cancelled) {
-                hasHydrated.current = true;
-                setUiReady(true);
-                setBackendStatus('Hydration failed. Continuing with defaults.');
-                setDebugInfo(err.stack || String(err));
-            }
-        });
-
-        return () => {
-            cancelled = true;
-        };
+        hydrate().catch(() => { if (!cancelled) { hasHydrated.current = true; setUiReady(true); }});
+        return () => { cancelled = true; };
     }, [backendReady, invokeNativeWithTimeout]);
 
     useEffect(() => {
@@ -454,25 +345,13 @@ export function useJuceBridge() {
     useEffect(() => {
         if (!hasHydrated.current || !backendReady) return;
         queueUiSnapshotSave(buildUiSnapshot(), UI_ONLY_SAVE_DELAY_MS);
-    }, [activeIdx, themeIdx, selectedTrack, currentPage, footerTab, backendReady, buildUiSnapshot, queueUiSnapshotSave]);
-
-    useEffect(() => {
-        return () => {
-            if (syncTimeout.current) {
-                window.clearTimeout(syncTimeout.current);
-            }
-            if (saveUiTimeout.current) {
-                window.clearTimeout(saveUiTimeout.current);
-            }
-        };
-    }, []);
+    }, [activeIdx, themeIdx, uiScale, selectedTrack, currentPage, footerTab, backendReady, buildUiSnapshot, queueUiSnapshotSave]);
 
     const updateUiAndEngine = useCallback((newData) => {
         const currentPattern = patterns[activeIdx];
         if (!currentPattern) return;
-
         const updatedData = { ...currentPattern.data, ...newData };
-
+        
         setPatterns(prev => {
             const next = [...prev];
             next[activeIdx] = { ...next[activeIdx], data: updatedData };
@@ -486,27 +365,9 @@ export function useJuceBridge() {
     }, [activeIdx, patterns, syncPatternToEngine]);
 
     return {
-        patterns,
-        activeIdx,
-        isPlaying,
-        bpm,
-        activeSection,
-        currentPage,
-        selectedTrack,
-        footerTab,
-        themeIdx,
-        setActiveIdx,
-        setActiveSection,
-        setCurrentPage,
-        setSelectedTrack,
-        setFooterTab,
-        setThemeIdx,
-        updateUiAndEngine,
-        syncPatternToEngine,
-        backendReady,
-        uiReady,
-        backendStatus,
-        debugInfo,
-        hasHydrated,
+        patterns, activeIdx, isPlaying, bpm, activeSection, currentPage,
+        selectedTrack, footerTab, themeIdx, uiScale, setActiveIdx, setActiveSection,
+        setCurrentPage, setSelectedTrack, setFooterTab, setThemeIdx, updateUiScale,
+        updateUiAndEngine, syncPatternToEngine, backendReady, uiReady, backendStatus, debugInfo, hasHydrated,
     };
 }

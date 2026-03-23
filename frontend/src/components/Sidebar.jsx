@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { PATTERN_LABELS, THEMES, Icons } from '../utils/constants';
+import { PATTERN_LABELS, THEMES, UI_SCALES, Icons } from '../utils/constants';
 import { hexToRgba, generateMidi } from '../utils/helpers';
 
-export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setThemeIdx, activeP, bpm, syncPatternToEngine, patterns }) {
+export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setThemeIdx, uiScale, setUiScale, activeP, bpm, syncPatternToEngine, patterns }) {
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+    const [isScaleMenuOpen, setIsScaleMenuOpen] = useState(false);
 
     return (
         <aside className="w-80 border-l shadow-2xl z-40 flex flex-col theme-transition glass-panel" 
@@ -16,7 +17,6 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
                             key={label}
                             onClick={() => {
                                 setActiveIdx(idx);
-                                // FIX: Send the new pattern's data to the C++ backend!
                                 syncPatternToEngine(patterns[idx].data, { activeIdx: idx });
                             }}
                             className="aspect-square rounded flex items-center justify-center text-xs font-black transition-all border"
@@ -33,12 +33,14 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
             </div>
             
             <div className="flex-1 p-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
+                
+                {/* THEME MENU */}
                 <section>
                     <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-3 flex items-center gap-2">
                         <Icons.Palette /> Interface Theme
                     </h3>
                     <div className="relative">
-                        <button onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
+                        <button onClick={() => { setIsThemeMenuOpen(!isThemeMenuOpen); setIsScaleMenuOpen(false); }}
                                 className="w-full flex items-center justify-between border rounded-lg py-3 px-4 text-[10px] font-black uppercase outline-none transition-all shadow-inner group"
                                 style={{ backgroundColor: 'rgba(0,0,0,0.4)', borderColor: t.border, color: t.text }}>
                             <span className="flex items-center gap-3">
@@ -66,6 +68,44 @@ export default function Sidebar({ t, activeIdx, setActiveIdx, themeIdx, setTheme
                         <div className="mt-3 flex gap-[1px] h-1.5 w-full rounded-full overflow-hidden bg-black/40">
                             {t.colors.map((c, i) => <div key={i} className="flex-1" style={{ backgroundColor: c }} />)}
                         </div>
+                    </div>
+                </section>
+
+                {/* SCALE MENU */}
+                <section>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-3 flex items-center gap-2">
+                        <Icons.Scaling /> User Interface Scale
+                    </h3>
+                    <div className="relative">
+                        <button onClick={() => { setIsScaleMenuOpen(!isScaleMenuOpen); setIsThemeMenuOpen(false); }}
+                                className="w-full flex items-center justify-between border rounded-lg py-3 px-4 text-[10px] font-black uppercase outline-none transition-all shadow-inner group"
+                                style={{ backgroundColor: 'rgba(0,0,0,0.4)', borderColor: t.border, color: t.text }}>
+                            <span className="flex items-center gap-3">
+                                {UI_SCALES.find(s => s.value === uiScale)?.label || "100%"}
+                            </span>
+                            <div className={`transition-transform duration-200 ${isScaleMenuOpen ? 'rotate-180' : ''}`}><Icons.ChevronDown /></div>
+                        </button>
+
+                        {isScaleMenuOpen && (
+                            <div className="absolute top-full left-0 right-0 mt-2 rounded-lg border shadow-2xl overflow-hidden z-[100] theme-transition"
+                                 style={{ backgroundColor: t.panel, borderColor: t.border }}>
+                                {UI_SCALES.map((scaleOption) => {
+                                    const active = scaleOption.value === uiScale;
+                                    return (
+                                        <button key={scaleOption.label} onClick={() => { setUiScale(scaleOption.value); setIsScaleMenuOpen(false); }}
+                                                className="w-full px-4 py-3 text-[10px] font-black uppercase text-left flex items-center justify-between transition-colors border-b last:border-0"
+                                                style={{ 
+                                                    backgroundColor: active ? hexToRgba(t.accent, 0.15) : 'transparent',
+                                                    color: active ? t.accent : t.text, 
+                                                    borderColor: t.border 
+                                                }}>
+                                            {scaleOption.label}
+                                            {active && <span style={{ color: t.accent }}>●</span>}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
                 </section>
 

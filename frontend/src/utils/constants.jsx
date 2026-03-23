@@ -5,6 +5,15 @@ export const MIDI_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8].flatMap(o => NOTES.map(n
 export const PATTERN_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 export const TAB_TO_KEY = { 'Velocity': 'velocities', 'Gate': 'gates', 'Probability': 'probabilities', 'Shift': 'shifts', 'Swing': 'swings' };
 
+export const UI_SCALES = [
+    { label: "75%", value: 0.75 },
+    { label: "85%", value: 0.85 },
+    { label: "100%", value: 1.0 },
+    { label: "115%", value: 1.15 },
+    { label: "125%", value: 1.25 },
+    { label: "150%", value: 1.5 },
+];
+
 export const THEMES = [
     { name: "Alpha", bg: "#06080b", panel: "#12151c", sidebar: "#0d1015", border: "rgba(255,255,255,0.05)", text: "#94a3b8", accent: "#fb923c", colors: ["#e879f9", "#fb923c", "#facc15", "#4ade80"] },
     { name: "Cyberpunk", bg: "#0d0221", panel: "#190e2f", sidebar: "#120a24", border: "rgba(0,255,255,0.1)", text: "#00ffff", accent: "#ff00ff", colors: ["#ff00ff", "#00ffff", "#ffff00", "#7cfc00"] },
@@ -17,5 +26,6 @@ export const THEMES = [
 export const Icons = {
     Download: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>,
     ChevronDown: () => <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
-    Palette: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H17c2.8 0 5-2.2 5-5 0-5.5-4.5-10-10-10z"/></svg>
+    Palette: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.7 1.6-1.6 0-.4-.2-.8-.5-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H17c2.8 0 5-2.2 5-5 0-5.5-4.5-10-10-10z"/></svg>,
+    Scaling: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 3l-6 6"/><path d="M21 3v6"/><path d="M21 3h-6"/><path d="M3 21l6-6"/><path d="M3 21v-6"/><path d="M3 21h6"/><path d="M14 14l6 6"/><path d="M14 20h6v-6"/><path d="M10 10L4 4"/><path d="M10 4H4v6"/></svg>
 };
