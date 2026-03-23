@@ -36,7 +36,7 @@ export const createEmptyPattern = (name) => ({
         swings: Array(16).fill(0).map(()=>Array(32).fill(0)),
         repeats: Array(16).fill(1).map(()=>Array(32).fill(1)),
         midiKeys: Array(16).fill(0).map((_,i)=>midiToNoteName(36 + i)),
-        trackStates: Array(16).fill(0).map(()=>({mute:false, solo:false, midiChannel: 1})),
+        trackStates: Array(16).fill(0).map(()=>({mute:false,solo:false,midiChannel:1})),
     }
 });
 
@@ -63,42 +63,25 @@ export const normalizeLoadedState = (savedState) => {
 };
 
 export const generateMidi = (patternData, bpm, trackIdx = null) => {
-    const { activeSteps, velocities, gates, repeats, midiKeys, shifts, trackStates } = patternData;
-    const PPQ = 480; 
-    const ticksPerStep = 120;
+    const { activeSteps, velocities, gates, repeats, midiKeys, shifts } = patternData;
+    const PPQ = 480; const ticksPerStep = 120;
     const isMulti = trackIdx === null;
-    
-    const header = [0x4d,0x54,0x68,0x64,0,0,0,6,0,1,0,isMulti?17:2,(PPQ>>8)&0xff,PPQ&0xff];
-
-    const mpqn = Math.round(60000000 / (bpm || 120));
-    const tempoTrack = [
-        0x4d, 0x54, 0x72, 0x6b, 
-        0x00, 0x00, 0x00, 0x0b, 
-        0x00, 0xff, 0x51, 0x03, (mpqn >> 16) & 0xff, (mpqn >> 8) & 0xff, mpqn & 0xff, 
-        0x00, 0xff, 0x2f, 0x00  
-    ];
+    const header = [0x4d,0x54,0x68,0x64,0,0,0,6,0,isMulti?1:0,0,isMulti?16:1,(PPQ>>8)&0xff,PPQ&0xff];
 
     const makeTrack = (idx) => {
         const note = noteNameToMidi(midiKeys[idx]);
-        const channel = (trackStates[idx].midiChannel || 1) - 1;
-        const noteOnMsg = 0x90 | channel;
-        const noteOffMsg = 0x80 | channel;
-
         let events = [];
         activeSteps[idx].forEach((active, sIdx) => {
             if (!active) return;
             const v = Math.round((velocities[idx][sIdx]/100)*127);
             const g = gates[idx][sIdx]/100;
             const r = repeats[idx][sIdx];
-            
-            const shiftTicks = Math.round(((shifts[idx][sIdx] - 50)/50)*ticksPerStep);
-            const start = Math.max(0, sIdx * ticksPerStep + shiftTicks);
+            const start = sIdx * ticksPerStep + Math.round(((shifts[idx][sIdx] - 50)/50)*ticksPerStep);
             const interval = ticksPerStep / r;
-            
             for(let i=0; i<r; i++) {
-                const on = Math.max(0, Math.round(start + (i*interval)));
-                const off = Math.max(on + 1, Math.round(on + (interval*g))); 
-                events.push({t:on,type:noteOnMsg,n:note,v:v},{t:off,type:noteOffMsg,n:note,v:0});
+                const on = Math.round(start + (i*interval));
+                const off = Math.round(on + (interval*g));
+                events.push({t:on,type:0x90,n:note,v:v},{t:off,type:0x80,n:note,v:0});
             }
         });
         events.sort((a,b)=>a.t-b.t);
@@ -112,7 +95,7 @@ export const generateMidi = (patternData, bpm, trackIdx = null) => {
         return [0x4d,0x54,0x72,0x6b,(bytes.length>>24)&0xff,(bytes.length>>16)&0xff,(bytes.length>>8)&0xff,bytes.length&0xff,...bytes];
     };
 
-    let body = [...tempoTrack];
+    let body = [];
     if(isMulti) for(let i=0;i<16;i++) body.push(...makeTrack(i));
     else body.push(...makeTrack(trackIdx));
 
