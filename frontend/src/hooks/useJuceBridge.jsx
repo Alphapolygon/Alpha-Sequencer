@@ -124,7 +124,6 @@ export function useJuceBridge() {
         uiScale: overrides.uiScale ?? uiScale
     }), [patterns, activeIdx, themeIdx, selectedTrack, currentPage, footerTab, uiScale]);
 
-    // OPTIMIZATION: Lightweight metadata snapshot for UI saves
     const buildUiMetaSnapshot = useCallback((overrides = {}) => ({
         activeIdx: overrides.activeIdx ?? activeIdx,
         themeIdx: overrides.themeIdx ?? themeIdx,
@@ -176,7 +175,8 @@ export function useJuceBridge() {
 
         const payload = JSON.stringify({
             ...patternData,
-            activePatternIndex: overrides.activeIdx ?? activeIdx,
+            activeIdx: overrides.activeIdx ?? activeIdx, // Sent for safety/backward compatibility
+            activePatternIndex: overrides.activeIdx ?? activeIdx, // The official engine schema key
             selectedTrack: overrides.selectedTrack ?? selectedTrack,
             currentPage: overrides.currentPage ?? currentPage
         });
@@ -347,13 +347,11 @@ export function useJuceBridge() {
         return () => { cancelled = true; };
     }, [backendReady, invokeNativeWithTimeout]);
 
-    // Keep the full build snapshot for major pattern changes if necessary
     useEffect(() => {
         if (!hasHydrated.current || !backendReady) return;
         queueUiSnapshotSave(buildUiSnapshot(), PATTERN_SAVE_DELAY_MS);
     }, [patterns, backendReady, buildUiSnapshot, queueUiSnapshotSave]);
 
-    // OPTIMIZATION: Only stringify/serialize the lightweight metadata for UI interactions
     useEffect(() => {
         if (!hasHydrated.current || !backendReady) return;
         queueUiSnapshotSave(buildUiMetaSnapshot(), UI_ONLY_SAVE_DELAY_MS);
@@ -371,9 +369,16 @@ export function useJuceBridge() {
         });
 
         if (syncTimeout.current) window.clearTimeout(syncTimeout.current);
+        
+        // FIX: Capture the exact active pattern index in this exact moment. 
+        // This prevents the timeout from accidentally applying Pattern A's step data into Pattern B
+        // if the user switches patterns before ENGINE_SYNC_DELAY_MS finishes!
+        const capturedIdx = activeIdx;
+        
         syncTimeout.current = window.setTimeout(() => {
-            syncPatternToEngine(updatedData);
+            syncPatternToEngine(updatedData, { activeIdx: capturedIdx });
         }, ENGINE_SYNC_DELAY_MS);
+        
     }, [activeIdx, patterns, syncPatternToEngine]);
 
     return {
