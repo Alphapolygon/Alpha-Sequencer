@@ -17,7 +17,8 @@ namespace
     }
 } // namespace
 
-void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& stateVar)
+// FAST PATH: Only updates basic UI metadata natively. NO Matrix iterations. NO infinite loops.
+void MiniLAB3StepSequencerAudioProcessor::updateUiMetadataFromVar(const juce::var& stateVar)
 {
     juce::var parsedVar = stateVar;
     if (parsedVar.isString()) parsedVar = juce::JSON::parse(parsedVar.toString());
@@ -34,9 +35,22 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
         footerTabIndex.store(ftIdx, std::memory_order_release);
     }
     if (object->hasProperty("activeIdx")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activeIdx"))), std::memory_order_release);
-    if (object->hasProperty("activePatternIndex")) activePatternIndex.store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, static_cast<int>(object->getProperty("activePatternIndex"))), std::memory_order_release);
     if (object->hasProperty("selectedTrack")) currentInstrument.store(juce::jlimit(0, MiniLAB3Seq::kNumTracks - 1, static_cast<int>(object->getProperty("selectedTrack"))), std::memory_order_release);
     if (object->hasProperty("currentPage")) currentPage.store(juce::jlimit(0, MiniLAB3Seq::kNumPages - 1, static_cast<int>(object->getProperty("currentPage"))), std::memory_order_release);
+    if (object->hasProperty("uiScale")) uiScale.store(static_cast<float>(static_cast<double>(object->getProperty("uiScale"))), std::memory_order_release);
+}
+
+// FULL PATH: Used for DAW Sync, MIDI inputs, etc.
+void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& stateVar)
+{
+    juce::var parsedVar = stateVar;
+    if (parsedVar.isString()) parsedVar = juce::JSON::parse(parsedVar.toString());
+    if (parsedVar.isVoid() || !parsedVar.isObject()) return;
+
+    auto* object = parsedVar.getDynamicObject();
+    if (object == nullptr) return;
+
+    updateUiMetadataFromVar(stateVar);
 
     modifySequencerState([&](MatrixSnapshot& writeMatrix)
         {
@@ -172,7 +186,8 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildCurrentPatternStateVar() con
     return juce::var(root.get());
 }
 
-juce::String MiniLAB3StepSequencerAudioProcessor::buildFullUiStateJsonForEditor() const
+// FAST EMISSION PATH: NO JSON STRINGIFY CHURN.
+juce::var MiniLAB3StepSequencerAudioProcessor::buildFullUiStateVarForEditor() const
 {
     juce::DynamicObject::Ptr root = new juce::DynamicObject();
     juce::Array<juce::var> patterns;
@@ -190,12 +205,13 @@ juce::String MiniLAB3StepSequencerAudioProcessor::buildFullUiStateJsonForEditor(
     root->setProperty("selectedTrack", currentInstrument.load(std::memory_order_acquire));
     root->setProperty("currentPage", currentPage.load(std::memory_order_acquire));
     root->setProperty("themeIdx", themeIndex.load(std::memory_order_acquire));
+    root->setProperty("uiScale", uiScale.load(std::memory_order_acquire));
 
     int ft = footerTabIndex.load(std::memory_order_acquire);
     juce::String ftStr = (ft == 1) ? "Gate" : (ft == 2) ? "Probability" : (ft == 3) ? "Shift" : (ft == 4) ? "Swing" : "Velocity";
     root->setProperty("footerTab", ftStr);
 
-    return juce::JSON::toString(juce::var(root.get()));
+    return juce::var(root.get());
 }
 
 void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -245,6 +261,7 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
     uiXml->setAttribute("currentPage", currentPage.load(std::memory_order_acquire));
     uiXml->setAttribute("themeIdx", themeIndex.load(std::memory_order_acquire));
     uiXml->setAttribute("footerTab", footerTabIndex.load(std::memory_order_acquire));
+    uiXml->setAttribute("uiScale", static_cast<double>(uiScale.load(std::memory_order_acquire)));
 
     copyXmlToBinary(*xml, destData);
 }
@@ -263,7 +280,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
     // ==========================================
     // THE MIGRATION PIPELINE
     // ==========================================
-
     if (stateVersion == 0)
     {
         // Migrate V0 to V1: Wrap the old "Matrix" into a "Patterns" array at index 0
@@ -282,10 +298,6 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         stateVersion = 1;
         xmlState->setAttribute("version", 1);
     }
-
-    // ==========================================
-    // PARSING
-    // ==========================================
 
     if (xmlState->hasTagName(apvts.state.getType())) {
         auto apvtsXml = std::make_unique<juce::XmlElement>(*xmlState);
@@ -349,6 +361,7 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
         currentPage.store(uiXml->getIntAttribute("currentPage", 0), std::memory_order_release);
         themeIndex.store(uiXml->getIntAttribute("themeIdx", 0), std::memory_order_release);
         footerTabIndex.store(uiXml->getIntAttribute("footerTab", 0), std::memory_order_release);
+        uiScale.store(static_cast<float>(uiXml->getDoubleAttribute("uiScale", 1.0)), std::memory_order_release);
     }
     else {
         activePatternIndex.store(xmlState->getIntAttribute("activePatternIndex", 0), std::memory_order_release);

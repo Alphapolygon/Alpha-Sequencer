@@ -82,22 +82,25 @@ public:
 
     std::atomic<int> themeIndex{ 0 };
     std::atomic<int> footerTabIndex{ 0 };
+    std::atomic<float> uiScale{ 1.0f }; // New Scale Parameter
 
     std::atomic<double> currentBpm{ 120.0 };
     std::atomic<bool> isPlaying{ false };
     std::atomic<uint32_t> uiStateVersion{ 1 };
 
     void setStepDataFromVar(const juce::var& stateVar);
+    void updateUiMetadataFromVar(const juce::var& stateVar); // Fast Path for saves
+
     juce::var buildPatternDataVar(int patternIndex) const;
     juce::var buildCurrentPatternStateVar() const;
-    juce::String buildFullUiStateJsonForEditor() const;
+    juce::var buildFullUiStateVarForEditor() const; // JSON parsing eliminated
 
     uint32_t getUiStateVersion() const noexcept { return uiStateVersion.load(); }
     void requestUiStateBroadcast() noexcept { markUiStateDirty(); }
     void markUiStateDirty() noexcept;
 
     std::atomic<int> droppedNotesCount{ 0 };
-    std::atomic<int> droppedHWMsgs{ 0 }; // Added for Hardware FIFO telemetry
+    std::atomic<int> droppedHWMsgs{ 0 };
 
 private:
     mutable juce::CriticalSection writerLock;
@@ -115,13 +118,10 @@ private:
     std::atomic<float> pendingSwingNormalized{ -1.0f };
 
     int lastProcessedStep = -1;
-
-    // Increased capacity to prevent overflow
     static constexpr size_t MaxMidiEvents = 8192;
     std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{};
     size_t queuedEventCount = 0;
 
-    // Increased capacity to prevent overflow
     juce::AbstractFifo hwFifo{ 4096 };
     std::array<HardwareMsg, 4096> hwQueue{};
 

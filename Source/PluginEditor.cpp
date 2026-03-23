@@ -35,7 +35,22 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 {
                     juce::MessageManager::callAsync([this, stateVar = args[0]]()
                         {
-                            audioProcessor.setStepDataFromVar(stateVar);
+                            // CPU FIX: Fast Path. No matrix iterations. No stringifying. No dirty flags.
+                            audioProcessor.updateUiMetadataFromVar(stateVar);
+                        });
+                }
+                completion(juce::var());
+            })
+        .withNativeFunction("setWindowScale",
+            [this](const auto& args, auto completion)
+            {
+                if (!args.isEmpty() && args[0].isDouble())
+                {
+                    const double scale = static_cast<double>(args[0]);
+                    juce::MessageManager::callAsync([this, scale]()
+                        {
+                            audioProcessor.uiScale.store(static_cast<float>(scale), std::memory_order_release);
+                            setSize(static_cast<int>(1460 * scale), static_cast<int>(1024 * scale));
                         });
                 }
                 completion(juce::var());
@@ -43,8 +58,8 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
         .withNativeFunction("requestInitialState",
             [this](const auto&, auto completion)
             {
-                const auto initialState = juce::JSON::parse(audioProcessor.buildFullUiStateJsonForEditor());
-                completion(initialState.isVoid() ? audioProcessor.buildCurrentPatternStateVar() : initialState);
+                // CPU FIX: JSON string building/parsing totally eliminated.
+                completion(audioProcessor.buildFullUiStateVarForEditor());
             })
         .withNativeFunction("uiReadyForEngineState",
             [this](const auto&, auto completion)
@@ -73,7 +88,10 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
     )
 {
     addAndMakeVisible(webComponent);
-    setSize(1460, 1024);
+
+    // Scale window correctly on initialization
+    const float scale = audioProcessor.uiScale.load(std::memory_order_acquire);
+    setSize(static_cast<int>(1460 * scale), static_cast<int>(1024 * scale));
 
 #if JUCE_WEB_BROWSER_RESOURCE_PROVIDER_AVAILABLE
     juce::String rootUrl = webComponent.getResourceProviderRoot();
@@ -114,7 +132,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged()
     const int absoluteStep = audioProcessor.global16thNote.load(std::memory_order_acquire);
     const int currentGridStep = (absoluteStep >= 0) ? (absoluteStep % 32) : -1;
 
-    // Fetch the metrics atomically from the backend
     const int droppedNotes = audioProcessor.droppedNotesCount.load(std::memory_order_relaxed);
     const int droppedHWMsgs = audioProcessor.droppedHWMsgs.load(std::memory_order_relaxed);
 
@@ -128,8 +145,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushPlaybackStateIfChanged()
         stateObj->setProperty("bpm", currentBpm);
         stateObj->setProperty("isPlaying", isPlaying);
         stateObj->setProperty("currentStep", currentGridStep);
-
-        // Pass telemetry exactly as React expects
         stateObj->setProperty("droppedNotes", droppedNotes);
         stateObj->setProperty("droppedHWMsgs", droppedHWMsgs);
 
@@ -143,9 +158,8 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushEngineStateIfChanged()
     if (uiVersion != lastUiStateVersion)
     {
         lastUiStateVersion = uiVersion;
-        const auto editorState = juce::JSON::parse(audioProcessor.buildFullUiStateJsonForEditor());
-        webComponent.emitEventIfBrowserIsVisible(
-            "engineState",
-            editorState.isVoid() ? audioProcessor.buildCurrentPatternStateVar() : editorState);
+
+        // CPU FIX: JSON string building/parsing totally eliminated! Just emits the Var tree!
+        webComponent.emitEventIfBrowserIsVisible("engineState", audioProcessor.buildFullUiStateVarForEditor());
     }
 }
