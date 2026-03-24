@@ -17,6 +17,11 @@ const REQUIRED_NATIVE_FUNCTIONS = [
     'setSelectedTrack',
     'setCurrentPage',
     'setWindowScale',
+    'setTrackLength',
+    'randomizeTrack',
+    'randomizeParameter',
+    'setTrackScale',
+    'setTrackSequence'
 ];
 
 const SAVE_UI_DELAY_MS = 300;
@@ -87,10 +92,7 @@ export function useJuceBridge() {
             nextActiveSteps[tIdx][sIdx] = isActive;
             return { ...data, activeSteps: nextActiveSteps };
         });
-
-        if (backendReady) {
-            invokeNativeWithTimeout('setStepActive', [pIdx, tIdx, sIdx, isActive]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setStepActive', [pIdx, tIdx, sIdx, isActive]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const editStepParameter = useCallback((pIdx, tIdx, sIdx, paramName, value) => {
@@ -99,11 +101,8 @@ export function useJuceBridge() {
             nextMatrix[tIdx][sIdx] = value;
             return { ...data, [paramName]: nextMatrix };
         });
-
         const nativeValue = paramName === 'repeats' ? value : value / 100.0;
-        if (backendReady) {
-            invokeNativeWithTimeout('setStepParameter', [pIdx, tIdx, sIdx, paramName, nativeValue]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setStepParameter', [pIdx, tIdx, sIdx, paramName, nativeValue]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const editTrackState = useCallback((tIdx, stateName, isEnabled) => {
@@ -111,10 +110,7 @@ export function useJuceBridge() {
             const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, [stateName]: isEnabled } : state);
             return { ...data, trackStates: nextTrackStates };
         });
-
-        if (backendReady) {
-            invokeNativeWithTimeout('setTrackState', [tIdx, stateName, isEnabled]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setTrackState', [tIdx, stateName, isEnabled]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const editTrackMidiKey = useCallback((tIdx, midiNoteName) => {
@@ -123,10 +119,7 @@ export function useJuceBridge() {
             nextMidiKeys[tIdx] = midiNoteName;
             return { ...data, midiKeys: nextMidiKeys };
         });
-
-        if (backendReady) {
-            invokeNativeWithTimeout('setTrackMidiKey', [tIdx, noteNameToMidi(midiNoteName)]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setTrackMidiKey', [tIdx, noteNameToMidi(midiNoteName)]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const editTrackMidiChannel = useCallback((tIdx, channel) => {
@@ -134,10 +127,7 @@ export function useJuceBridge() {
             const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, midiChannel: channel } : state);
             return { ...data, trackStates: nextTrackStates };
         });
-
-        if (backendReady) {
-            invokeNativeWithTimeout('setTrackMidiChannel', [tIdx, channel]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setTrackMidiChannel', [tIdx, channel]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const editClearTrack = useCallback((pIdx, tIdx) => {
@@ -145,47 +135,72 @@ export function useJuceBridge() {
             const nextActiveSteps = data.activeSteps.map((row, rowIdx) => rowIdx === tIdx ? Array(32).fill(false) : row);
             return { ...data, activeSteps: nextActiveSteps };
         });
-
-        if (backendReady) {
-            invokeNativeWithTimeout('clearTrack', [pIdx, tIdx]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('clearTrack', [pIdx, tIdx]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const changeActivePattern = useCallback((idx) => {
         setActiveIdx(idx);
-        if (backendReady) {
-            invokeNativeWithTimeout('setActivePattern', [idx]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setActivePattern', [idx]).catch(console.error);
     }, [backendReady, invokeNativeWithTimeout]);
 
     const changeSelectedTrack = useCallback((idx) => {
         setSelectedTrack(idx);
-        if (backendReady) {
-            invokeNativeWithTimeout('setSelectedTrack', [idx]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setSelectedTrack', [idx]).catch(console.error);
     }, [backendReady, invokeNativeWithTimeout]);
 
     const changeCurrentPage = useCallback((idx) => {
         setCurrentPage(idx);
-        if (backendReady) {
-            invokeNativeWithTimeout('setCurrentPage', [idx]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setCurrentPage', [idx]).catch(console.error);
     }, [backendReady, invokeNativeWithTimeout]);
 
     const updateUiScale = useCallback((scale) => {
         setUiScale(scale);
-        if (backendReady) {
-            invokeNativeWithTimeout('setWindowScale', [scale]).catch(console.error);
-        }
+        if (backendReady) invokeNativeWithTimeout('setWindowScale', [scale]).catch(console.error);
+    }, [backendReady, invokeNativeWithTimeout]);
+
+    const setTrackLength = useCallback((tIdx, len) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, length: len } : state);
+            return { ...data, trackStates: nextTrackStates };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackLength', [tIdx, len]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    const setTrackSequence = useCallback((tIdx, seq) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, sequence: seq } : state);
+            return { ...data, trackStates: nextTrackStates };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackSequence', [tIdx, seq]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    const setTrackScale = useCallback((tIdx, scale) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, scale: scale } : state);
+            return { ...data, trackStates: nextTrackStates };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackScale', [tIdx, scale]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    const randomizeTrack = useCallback(async (tIdx) => {
+        if (!backendReady) return;
+        await invokeNativeWithTimeout('randomizeTrack', [tIdx]);
+        const savedState = await invokeNativeWithTimeout('requestInitialState');
+        const parsedState = typeof savedState === 'string' ? JSON.parse(savedState) : savedState;
+        setPatterns(normalizeLoadedState(parsedState).patterns);
+    }, [backendReady, invokeNativeWithTimeout]);
+
+    const randomizeParameter = useCallback(async (tIdx, paramName) => {
+        if (!backendReady) return;
+        await invokeNativeWithTimeout('randomizeParameter', [tIdx, paramName]);
+        const savedState = await invokeNativeWithTimeout('requestInitialState');
+        const parsedState = typeof savedState === 'string' ? JSON.parse(savedState) : savedState;
+        setPatterns(normalizeLoadedState(parsedState).patterns);
     }, [backendReady, invokeNativeWithTimeout]);
 
     const syncPatternToEngine = useCallback((_patternData, metadataPatch = {}) => {
-        if (Object.prototype.hasOwnProperty.call(metadataPatch, 'activeIdx')) {
-            changeActivePattern(metadataPatch.activeIdx);
-        }
-        if (Object.prototype.hasOwnProperty.call(metadataPatch, 'selectedTrack')) {
-            changeSelectedTrack(metadataPatch.selectedTrack);
-        }
+        if (Object.prototype.hasOwnProperty.call(metadataPatch, 'activeIdx')) changeActivePattern(metadataPatch.activeIdx);
+        if (Object.prototype.hasOwnProperty.call(metadataPatch, 'selectedTrack')) changeSelectedTrack(metadataPatch.selectedTrack);
         if (Object.prototype.hasOwnProperty.call(metadataPatch, 'currentPage')) {
             const page = metadataPatch.currentPage;
             setActiveSection(page);
@@ -199,7 +214,6 @@ export function useJuceBridge() {
         if (!currentData) return;
 
         applyPatternDataPatch(patternIndex, { ...currentData, ...patch });
-
         if (!backendReady) return;
 
         if (patch.activeSteps) {
@@ -237,15 +251,9 @@ export function useJuceBridge() {
                 const prevState = currentData.trackStates[t] || {};
                 const nextState = patch.trackStates[t] || {};
 
-                if (nextState.mute !== prevState.mute) {
-                    invokeNativeWithTimeout('setTrackState', [t, 'mute', !!nextState.mute]).catch(console.error);
-                }
-                if (nextState.solo !== prevState.solo) {
-                    invokeNativeWithTimeout('setTrackState', [t, 'solo', !!nextState.solo]).catch(console.error);
-                }
-                if (typeof nextState.midiChannel === 'number' && nextState.midiChannel !== prevState.midiChannel) {
-                    invokeNativeWithTimeout('setTrackMidiChannel', [t, nextState.midiChannel]).catch(console.error);
-                }
+                if (nextState.mute !== prevState.mute) invokeNativeWithTimeout('setTrackState', [t, 'mute', !!nextState.mute]).catch(console.error);
+                if (nextState.solo !== prevState.solo) invokeNativeWithTimeout('setTrackState', [t, 'solo', !!nextState.solo]).catch(console.error);
+                if (typeof nextState.midiChannel === 'number' && nextState.midiChannel !== prevState.midiChannel) invokeNativeWithTimeout('setTrackMidiChannel', [t, nextState.midiChannel]).catch(console.error);
             }
         }
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
@@ -257,16 +265,13 @@ export function useJuceBridge() {
             case 'selectedTrackChanged':
                 if (Number.isInteger(diff.selectedTrack)) setSelectedTrack(diff.selectedTrack);
                 return;
-
             case 'currentPageChanged':
                 if (Number.isInteger(diff.currentPage)) setCurrentPage(diff.currentPage);
                 if (Number.isInteger(diff.activeSection)) setActiveSection(diff.activeSection);
                 return;
-
             case 'activePatternChanged':
                 if (Number.isInteger(diff.activeIdx)) setActiveIdx(diff.activeIdx);
                 return;
-
             case 'stepActiveChanged':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.stepIndex)) {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -276,7 +281,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
             case 'stepParameterChanged':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.stepIndex) && typeof diff.paramName === 'string') {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -288,7 +292,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
             case 'trackStateChanged':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && typeof diff.stateName === 'string') {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -297,7 +300,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
             case 'trackMidiKeyChanged':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.midiNote)) {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -307,7 +309,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
             case 'trackMidiChannelChanged':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.midiChannel)) {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -316,20 +317,16 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
             case 'pageCleared':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.pageIndex)) {
                     const startStep = diff.pageIndex * 8;
                     applyPatternDataPatch(diff.patternIndex, (data) => {
                         const nextActiveSteps = data.activeSteps.map((row, rowIdx) => rowIdx === diff.trackIndex ? [...row] : row);
-                        for (let step = startStep; step < startStep + 8; step++) {
-                            nextActiveSteps[diff.trackIndex][step] = false;
-                        }
+                        for (let step = startStep; step < startStep + 8; step++) nextActiveSteps[diff.trackIndex][step] = false;
                         return { ...data, activeSteps: nextActiveSteps };
                     });
                 }
                 return;
-
             case 'trackCleared':
                 if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex)) {
                     applyPatternDataPatch(diff.patternIndex, (data) => {
@@ -338,7 +335,24 @@ export function useJuceBridge() {
                     });
                 }
                 return;
+            case 'trackLengthChanged':
+                if (Number.isInteger(diff.patternIndex) && Number.isInteger(diff.trackIndex) && Number.isInteger(diff.length)) {
+                    applyPatternDataPatch(diff.patternIndex, (data) => {
+                        const nextTrackStates = data.trackStates.map((state, index) => index === diff.trackIndex ? { ...state, length: diff.length } : state);
+                        return { ...data, trackStates: nextTrackStates };
+                    });
+                }
+                return;
 
+            // FIX: Append sequence changes driven by hardware piano keys!
+            case 'trackSequenceChanged':
+                if (Number.isInteger(diff.trackIndex) && typeof diff.sequence === 'string') {
+                    applyPatternDataPatch(activeIdxRef.current, (data) => {
+                        const nextTrackStates = data.trackStates.map((state, index) => index === diff.trackIndex ? { ...state, sequence: diff.sequence } : state);
+                        return { ...data, trackStates: nextTrackStates };
+                    });
+                }
+                return;
             default:
                 return;
         }
@@ -349,27 +363,19 @@ export function useJuceBridge() {
 
         const initBackend = async () => {
             const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
             try {
                 let retries = 120;
                 while (!window.__JUCE__?.backend && retries > 0) {
-                    if (!cancelled) {
-                        setBackendStatus('Waiting for JUCE backend...');
-                    }
+                    if (!cancelled) setBackendStatus('Waiting for JUCE backend...');
                     await wait(50);
                     retries--;
                 }
-
-                if (window.__JUCE__?.initialisationPromise) {
-                    await window.__JUCE__.initialisationPromise;
-                }
-
+                if (window.__JUCE__?.initialisationPromise) await window.__JUCE__.initialisationPromise;
                 retries = 120;
                 while (retries > 0) {
                     try {
                         resolveNativeFunctions();
                         if (!backendSupportsEvents()) throw new Error('JUCE backend event API is unavailable');
-
                         if (!cancelled) {
                             setBackendReady(true);
                             setBackendStatus('JUCE bridge ready. Starting hydration...');
@@ -399,7 +405,6 @@ export function useJuceBridge() {
 
     useEffect(() => {
         if (!backendReady || !backendSupportsEvents()) return undefined;
-
         const handlePlaybackState = (event) => {
             if (event?.bpm) setBpm(Math.round(event.bpm));
             setIsPlaying(!!event?.isPlaying);
@@ -407,19 +412,16 @@ export function useJuceBridge() {
             setCurrentStep(step);
             window.dispatchEvent(new CustomEvent('juce-playhead', { detail: step }));
         };
-
         const listenerHandle = window.__JUCE__.backend.addEventListener('playbackState', handlePlaybackState);
         return () => window.__JUCE__.backend.removeEventListener(listenerHandle);
     }, [backendReady, backendSupportsEvents]);
 
     useEffect(() => {
         if (!backendReady || !backendSupportsEvents()) return undefined;
-
         const handleEngineDiff = (event) => {
             if (!hasHydrated.current) return;
             applyEngineDiff(event);
         };
-
         const listenerHandle = window.__JUCE__.backend.addEventListener('engineDiff', handleEngineDiff);
         return () => window.__JUCE__.backend.removeEventListener(listenerHandle);
     }, [applyEngineDiff, backendReady, backendSupportsEvents]);
@@ -430,7 +432,6 @@ export function useJuceBridge() {
 
         const hydrate = async () => {
             let normalized = normalizeLoadedState(null);
-
             try {
                 setBackendStatus('Calling requestInitialState...');
                 const savedState = await invokeNativeWithTimeout('requestInitialState');
@@ -440,7 +441,6 @@ export function useJuceBridge() {
             } catch (err) {
                 console.error('requestInitialState failed or timed out', err);
             }
-
             if (cancelled) return;
 
             setPatterns(normalized.patterns);
@@ -455,11 +455,7 @@ export function useJuceBridge() {
             await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
             if (cancelled) return;
 
-            try {
-                await invokeNativeWithTimeout('uiReadyForEngineState');
-            } catch (err) {
-                console.error(err);
-            }
+            try { await invokeNativeWithTimeout('uiReadyForEngineState'); } catch (err) { console.error(err); }
 
             if (cancelled) return;
             hasHydrated.current = true;
@@ -493,52 +489,27 @@ export function useJuceBridge() {
             })]).catch(console.error);
         }, SAVE_UI_DELAY_MS);
 
-        return () => {
-            if (saveUiTimeout.current) {
-                window.clearTimeout(saveUiTimeout.current);
-            }
-        };
+        return () => { if (saveUiTimeout.current) window.clearTimeout(saveUiTimeout.current); };
     }, [activeIdx, themeIdx, selectedTrack, currentPage, activeSection, footerTab, uiScale, backendReady, invokeNativeWithTimeout]);
 
     return {
-        patterns,
-        activeIdx,
-        isPlaying,
-        bpm,
-        currentStep,
-        activeSection,
-        currentPage,
-        selectedTrack,
-        footerTab,
-        themeIdx,
-        uiScale,
+        patterns, activeIdx, isPlaying, bpm, currentStep, activeSection,
+        currentPage, selectedTrack, footerTab, themeIdx, uiScale,
 
         setActiveIdx: changeActivePattern,
         setActiveSection,
         setCurrentPage: changeCurrentPage,
         setSelectedTrack: changeSelectedTrack,
-        setFooterTab,
-        setThemeIdx,
-        updateUiScale,
+        setFooterTab, setThemeIdx, updateUiScale,
+        changeActivePattern, changeSelectedTrack, changeCurrentPage,
 
-        changeActivePattern,
-        changeSelectedTrack,
-        changeCurrentPage,
+        updateUiAndEngine, syncPatternToEngine,
+        editStepActive, editStepParameter, editTrackState, editTrackMidiKey,
+        editTrackMidiChannel, editClearTrack,
+        
+        setTrackLength, setTrackSequence, setTrackScale,
+        randomizeTrack, randomizeParameter,
 
-        updateUiAndEngine,
-        syncPatternToEngine,
-
-        editStepActive,
-        editStepParameter,
-        editTrackState,
-        editTrackMidiKey,
-        editTrackMidiChannel,
-        editClearTrack,
-
-        backendReady,
-        uiReady,
-        backendStatus,
-        debugInfo,
-        hasHydrated,
+        backendReady, uiReady, backendStatus, debugInfo, hasHydrated,
     };
 }

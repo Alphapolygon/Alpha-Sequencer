@@ -1,16 +1,16 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef } from 'react';
 import { TAB_TO_KEY } from '../utils/constants';
 import { hexToRgba } from '../utils/helpers';
 
-// FIX: Declarative React.memo cell. Re-renders exclusively when isPlayhead or internal data changes.
-const AutoCell = React.memo(({ value, isActive, isPlayhead, trackColor, onDraw, onContextMenu }) => {
+const AutoCell = React.memo(({ value, isActive, isPlayhead, isOutBounds, trackColor, onDraw, onContextMenu }) => {
     return (
         <div className="flex-1 h-full flex flex-col justify-end group cursor-ns-resize relative"
-             onMouseDown={onDraw} onMouseMove={onDraw} onContextMenu={onContextMenu}>
+             onMouseDown={onDraw} onMouseMove={onDraw} onContextMenu={onContextMenu}
+             style={{ opacity: isOutBounds ? 0.2 : 1 }}>
             <div className="w-full rounded-t-[1px] relative overflow-hidden transition-all duration-75"
                  style={{ 
                      height: `${value}%`, 
-                     backgroundColor: isActive ? trackColor : 'rgba(255,255,255,0.05)',
+                     backgroundColor: isOutBounds ? 'rgba(0,0,0,0.4)' : (isActive ? trackColor : 'rgba(255,255,255,0.05)'),
                      borderTop: isPlayhead ? '2px solid #fff' : 'none',
                      boxShadow: isPlayhead ? '0 0 15px rgba(255,255,255,0.4)' : 'none'
                  }}>
@@ -22,16 +22,8 @@ const AutoCell = React.memo(({ value, isActive, isPlayhead, trackColor, onDraw, 
 
 export default function AutomationLanes({ t, activeP, selectedTrack, activeSection, footerTab, setFooterTab, bridge }) {
     const isDrawing = useRef(false);
-    const { activeSteps, repeats } = activeP.data;
-
-    const trackLen = useMemo(() => {
-        let max = -1;
-        for (let i = 31; i >= 0; i--) { if (activeSteps[selectedTrack][i]) { max = i; break; } }
-        if (max >= 24) return 32;
-        if (max >= 16) return 24;
-        if (max >= 8) return 16;
-        return 8;
-    }, [activeSteps, selectedTrack]);
+    const { activeSteps, repeats, trackStates } = activeP.data;
+    const trackLen = trackStates[selectedTrack]?.length || 16;
 
     const handleDraw = (sIdx, e) => {
         const key = TAB_TO_KEY[footerTab];
@@ -57,13 +49,20 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
             onMouseUp={() => isDrawing.current = false}
             onMouseLeave={() => isDrawing.current = false}>
             <div className="w-56 flex flex-col justify-between py-1 border-r pr-4" style={{ borderColor: t.border }}>
-                <div className="bg-black/30 p-4 rounded-xl border flex flex-col gap-1" style={{ borderColor: t.border }}>
-                    {['Velocity', 'Gate', 'Probability', 'Shift', 'Swing'].map(tab => (
-                        <button key={tab} onClick={() => setFooterTab(tab)}
-                            className="px-4 py-2 rounded text-[9px] font-black uppercase text-left transition-all"
-                            style={{ backgroundColor: footerTab === tab ? t.accent : 'transparent', color: footerTab === tab ? '#000' : t.text }}>{tab}</button>
-                    ))}
-                </div>
+				<div className="bg-black/30 p-4 rounded-xl border flex flex-col gap-1" style={{ borderColor: t.border }}>
+					{['Velocity', 'Gate', 'Probability', 'Shift', 'Swing'].map(tab => (
+						<div key={tab} className="flex gap-1 group">
+							<button onClick={() => setFooterTab(tab)}
+								className="flex-1 px-4 py-2 rounded text-[9px] font-black uppercase text-left transition-all"
+								style={{ backgroundColor: footerTab === tab ? t.accent : 'transparent', color: footerTab === tab ? '#000' : t.text }}>{tab}</button>
+							
+                            {/* FIX: Use TAB_TO_KEY to map exact strings for C++ */}
+							<button onClick={() => bridge.randomizeParameter(selectedTrack, TAB_TO_KEY[tab])}
+									className="px-2 rounded opacity-0 group-hover:opacity-40 hover:opacity-100 transition-all border border-transparent hover:border-white/20 text-[8px] font-black"
+									title={`Randomize ${tab}`}>R</button>
+						</div>
+					))}
+				</div>
                 <div className="text-center"><span className="text-[9px] font-black uppercase tracking-tighter italic" style={{ color: t.accent }}>CH. {selectedTrack + 1} Automation</span></div>
             </div>
 
@@ -83,6 +82,7 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                                             value={v}
                                             isActive={activeSteps[selectedTrack][sIdx]}
                                             isPlayhead={bridge.currentStep >= 0 && (bridge.currentStep % trackLen === sIdx)}
+                                            isOutBounds={sIdx >= trackLen}
                                             trackColor={t.colors[selectedTrack % t.colors.length]}
                                             onDraw={(e) => handleDraw(sIdx, e)}
                                             onContextMenu={(e) => handleDraw(sIdx, e)}
@@ -104,7 +104,7 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                                 {repeats[selectedTrack].slice(secIdx * 8, secIdx * 8 + 8).map((c, localIdx) => {
                                     const sIdx = secIdx * 8 + localIdx;
                                     return (
-                                        <div key={sIdx} className="flex-1 flex flex-col gap-[1px]">
+                                        <div key={sIdx} className="flex-1 flex flex-col gap-[1px]" style={{ opacity: sIdx >= trackLen ? 0.2 : 1 }}>
                                             {[1, 2, 3, 4].map(val => (
                                                 <button key={val} onClick={() => bridge.editStepParameter(bridge.activeIdx, selectedTrack, sIdx, 'repeats', val)}
                                                     className="flex-1 rounded-[1px] text-[7px] font-black transition-all border"
