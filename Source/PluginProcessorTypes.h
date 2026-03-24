@@ -34,7 +34,7 @@ enum class UiDiffEventType : uint8_t
     ClearPage,
     ClearTrack,
     TrackSequenceChanged,
-    TrackLengthChanged // NEW: For polymeter syncing
+    TrackLengthChanged
 };
 
 enum class UiDiffParam : uint8_t

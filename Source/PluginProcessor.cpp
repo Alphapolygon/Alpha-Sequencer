@@ -79,10 +79,16 @@ MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
             }
         });
 
-    // Default to 16 steps independently
-    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
-        for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
+    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p) {
+        for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
             trackLengths[p][t].store(16, std::memory_order_release);
+            trackTimeDivisions[p][t].store(3, std::memory_order_release);
+            if (p == 0) {
+                lastNoteOnPerTrack[t] = -1;
+                lastChannelOnPerTrack[t] = -1;
+            }
+        }
+    }
 
     markUiStateDirty();
     requestLedRefresh();
@@ -238,7 +244,12 @@ bool MiniLAB3StepSequencerAudioProcessor::popUiDiffEvent(UiDiffEvent& event) noe
     return true;
 }
 
-// Independent lengths logic implemented
+void MiniLAB3StepSequencerAudioProcessor::setTrackTimeDivisionNative(int pIdx, int tIdx, int divisionIdx)
+{
+    trackTimeDivisions[pIdx][tIdx].store(juce::jlimit(0, 4, divisionIdx), std::memory_order_release);
+    markUiStateDirty();
+}
+
 void MiniLAB3StepSequencerAudioProcessor::setTrackLengthNative(int pIdx, int tIdx, int length, bool emitUiDiff)
 {
     trackLengths[pIdx][tIdx].store(juce::jlimit(1, MiniLAB3Seq::kNumSteps, length), std::memory_order_release);

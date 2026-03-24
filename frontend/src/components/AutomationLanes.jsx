@@ -56,10 +56,10 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
 								className="flex-1 px-4 py-2 rounded text-[9px] font-black uppercase text-left transition-all"
 								style={{ backgroundColor: footerTab === tab ? t.accent : 'transparent', color: footerTab === tab ? '#000' : t.text }}>{tab}</button>
 							
-                            {/* FIX: Use TAB_TO_KEY to map exact strings for C++ */}
+                            {/* FIX: Removed opacity-0 so the Random button is clearly visible */}
 							<button onClick={() => bridge.randomizeParameter(selectedTrack, TAB_TO_KEY[tab])}
-									className="px-2 rounded opacity-0 group-hover:opacity-40 hover:opacity-100 transition-all border border-transparent hover:border-white/20 text-[8px] font-black"
-									title={`Randomize ${tab}`}>R</button>
+									className="px-2 rounded opacity-40 hover:opacity-100 transition-all border border-transparent hover:border-white/20 text-[8px] font-black"
+									title={`Randomize ${tab}`} style={{ color: t.accent }}>R</button>
 						</div>
 					))}
 				</div>
@@ -108,7 +108,7 @@ export default function AutomationLanes({ t, activeP, selectedTrack, activeSecti
                                             {[1, 2, 3, 4].map(val => (
                                                 <button key={val} onClick={() => bridge.editStepParameter(bridge.activeIdx, selectedTrack, sIdx, 'repeats', val)}
                                                     className="flex-1 rounded-[1px] text-[7px] font-black transition-all border"
-                                                    style={{ backgroundColor: c === val ? t.accent : 'rgba(255,255,255,0.05)', borderColor: c === val ? t.accent : t.border, color: c === val ? '#000' : hexToRgba(t.text, 0.4) }}>{val}</button>
+                                                    style={{ backgroundColor: c === val ? t.accent : 'rgba(255,255,255,0.05)', borderColor: c === val ? t.accent : t.border, color: c === val ? '#000' : hexToRgba(t.text, 0.6) }}>{val}</button>
                                             ))}
                                         </div>
                                     );

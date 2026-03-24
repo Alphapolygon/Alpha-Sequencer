@@ -6,6 +6,17 @@ namespace {
             return a.ppqTime > b.ppqTime;
         }
     };
+
+    static constexpr double kGateSnaps[] = {
+        0.0625, // 1/64
+        0.125,  // 1/32
+        0.25,   // 1/16
+        0.5,    // 1/8
+        1.0,    // 1/4
+        2.0,    // 1/2
+        3.0,    // Dot 1/2
+        4.0     // 1 Bar
+    };
 }
 
 void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
@@ -22,6 +33,11 @@ void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
 
     droppedNotesCount.store(0, std::memory_order_release);
     droppedHWMsgs.store(0, std::memory_order_release);
+
+    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i) {
+        lastNoteOnPerTrack[i] = -1;
+        lastChannelOnPerTrack[i] = -1;
+    }
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg)
@@ -65,7 +81,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
         if (isHardwareControl && msg.getRawDataSize() <= 3)
         {
-            if (isHardwareOwner()) // Ownership check for HW CCs
+            if (isHardwareOwner())
             {
                 auto writeHandle = hwFifo.write(1);
                 if (writeHandle.blockSize1 > 0) {
@@ -113,52 +129,50 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                 currentBpm.store(bpm, std::memory_order_release);
 
-                if (ppqStart < (lastProcessedStep * 0.25))
+                if (ppqStart < (lastProcessedStep * 0.03125))
                 {
-                    lastProcessedStep = static_cast<int>(std::floor(ppqStart * 4.0)) - 1;
+                    lastProcessedStep = -1;
                     queuedEventCount = 0;
-                    for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
-                        midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
-
-                    // Reset generative sequences
-                    for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
+                    for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
+                        midiMessages.addEvent(juce::MidiMessage::allNotesOff(t + 1), 0);
                         currentSequenceIndex[t].store(0, std::memory_order_release);
+                        lastNoteOnPerTrack[t] = -1;
+                    }
                 }
 
-                const int firstStep = static_cast<int>(std::floor(ppqStart * 4.0));
-                const int lastStepInBlock = static_cast<int>(std::floor(blockEndPpq * 4.0));
-
                 const int pIdx = activePatternIndex.load(std::memory_order_acquire);
+                const int firstTick = static_cast<int>(std::floor(ppqStart / 0.03125));
+                const int lastTick = static_cast<int>(std::floor(blockEndPpq / 0.03125));
 
-                for (int step = firstStep; step <= lastStepInBlock; ++step)
+                for (int tick = firstTick; tick <= lastTick; ++tick)
                 {
-                    if (step <= lastProcessedStep)
-                        continue;
+                    if (tick <= lastProcessedStep) continue;
+                    lastProcessedStep = tick;
+                    const double tickPpq = tick * 0.03125;
 
-                    lastProcessedStep = step;
-                    global16thNote.store(step, std::memory_order_release);
+                    global16thNote.store(static_cast<int>(std::floor(tickPpq * 4.0)), std::memory_order_release);
 
                     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track)
                     {
-                        const bool canPlay = anySolo ? (soloParams[track]->load() > 0.5f)
-                            : (muteParams[track]->load() < 0.5f);
-                        if (!canPlay)
-                            continue;
+                        const bool canPlay = anySolo ? (soloParams[track]->load() > 0.5f) : (muteParams[track]->load() < 0.5f);
+                        if (!canPlay) continue;
 
-                        const int length = juce::jlimit(1, MiniLAB3Seq::kNumSteps, trackLengths[pIdx][track].load(std::memory_order_acquire));
-                        const int wrappedStep = step % length;
+                        static constexpr double kDivValues[] = { 2.0, 1.0, 0.5, 0.25, 0.125 };
+                        const double stepLengthPpq = kDivValues[trackTimeDivisions[pIdx][track].load(std::memory_order_relaxed)];
 
-                        const auto& trackData = getActiveTrack(pIdx, track);
-                        const auto& stepData = trackData[wrappedStep];
-                        if (!stepData.isActive)
-                            continue;
+                        if (std::fmod(tickPpq + 0.0001, stepLengthPpq) >= 0.03125) continue;
 
-                        if (playbackRandom.nextFloat() >= stepData.probability)
-                            continue;
+                        const int stepIndex = static_cast<int>(std::round(tickPpq / stepLengthPpq));
+                        const int length = trackLengths[pIdx][track].load(std::memory_order_acquire);
+                        const int wrappedStep = stepIndex % length;
 
-                        const int channel = juce::jlimit(1, 16, trackMidiChannels[track].load(std::memory_order_relaxed));
+                        const auto& stepData = getActiveTrack(pIdx, track)[wrappedStep];
+                        if (!stepData.isActive || playbackRandom.nextFloat() >= stepData.probability) continue;
 
-                        // Generative Pitch Math
+                        if (lastNoteOnPerTrack[track] != -1) {
+                            scheduleMidiEvent(tickPpq, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], lastNoteOnPerTrack[track], 0.0f));
+                        }
+
                         const int rootNote = static_cast<int>(std::round(noteParams[track]->load()));
                         const int scaleType = trackScales[track].load(std::memory_order_relaxed);
                         const int seqLen = trackSequenceLengths[track].load(std::memory_order_relaxed);
@@ -168,7 +182,6 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         int zeroBasedDegree = degree - 1;
 
                         const int scaleLen = MiniLAB3Seq::kScaleLengths[scaleType];
-
                         int octaveShift = (zeroBasedDegree >= 0) ? (zeroBasedDegree / scaleLen) : ((zeroBasedDegree - scaleLen + 1) / scaleLen);
                         int noteIndex = (zeroBasedDegree % scaleLen);
                         if (noteIndex < 0) noteIndex += scaleLen;
@@ -178,30 +191,35 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                         currentSequenceIndex[track].store((seqIdx + 1) % seqLen, std::memory_order_release);
 
+                        int snapIdx = static_cast<int>(std::round(stepData.gate * 7.0f));
+                        double noteDurationPpq = kGateSnaps[juce::jlimit(0, 7, snapIdx)];
+
+                        const int channel = juce::jlimit(1, 16, trackMidiChannels[track].load(std::memory_order_relaxed));
                         const float velocity = juce::jlimit(0.0f, 1.0f, stepData.velocity * masterVolParam->load());
-                        const float gate = juce::jlimit(0.0f, 1.0f, stepData.gate);
+
                         const int repeats = juce::jlimit(1, 4, stepData.repeats);
                         const float shift = stepData.shift;
                         const float stepSwing = juce::jlimit(0.0f, 1.0f, stepData.swing);
 
-                        constexpr double stepLengthPpq = 0.25;
                         const double shiftPpq = (shift - 0.5f) * (stepLengthPpq / 2.0);
-                        const double globalSwingPpqOffset = (step % 2 != 0) ? (swingParam->load() * (stepLengthPpq / 2.0)) : 0.0;
-                        const double localSwingPpqOffset = (step % 2 != 0) ? (stepSwing * (stepLengthPpq / 2.0)) : 0.0;
+                        const double globalSwingPpqOffset = (stepIndex % 2 != 0) ? (swingParam->load() * (stepLengthPpq / 2.0)) : 0.0;
+                        const double localSwingPpqOffset = (stepIndex % 2 != 0) ? (stepSwing * (stepLengthPpq / 2.0)) : 0.0;
                         const double nudgePpqOffset = nudgeParams[track]->load() * 0.001 * bpm / 60.0;
-                        const double basePpq = (step * stepLengthPpq) + shiftPpq + globalSwingPpqOffset + localSwingPpqOffset + nudgePpqOffset;
+                        const double basePpq = tickPpq + shiftPpq + globalSwingPpqOffset + localSwingPpqOffset + nudgePpqOffset;
                         const double repeatIntervalPpq = stepLengthPpq / repeats;
 
                         for (int repeatIndex = 0; repeatIndex < repeats; ++repeatIndex)
                         {
                             const double onPpq = basePpq + (repeatIndex * repeatIntervalPpq);
-                            const double offPpq = onPpq + (repeatIntervalPpq * gate);
+                            const double offPpq = onPpq + (noteDurationPpq / repeats);
 
                             scheduleMidiEvent(onPpq, juce::MidiMessage::noteOn(channel, note, velocity));
                             scheduleMidiEvent(offPpq, juce::MidiMessage::noteOff(channel, note, 0.0f));
                         }
 
                         lastFiredVelocity[track][wrappedStep] = velocity;
+                        lastNoteOnPerTrack[track] = note;
+                        lastChannelOnPerTrack[track] = channel;
                     }
                 }
 

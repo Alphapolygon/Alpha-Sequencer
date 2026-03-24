@@ -11,12 +11,12 @@ export default function Header({ t, bpm, isPlaying, activeSection, bridge }) {
                 </h1>
                 
                 <div className="flex flex-col items-center ml-2 border-l pl-6" style={{ borderColor: t.border }}>
-                    <span className="text-[8px] font-black uppercase mb-0.5 opacity-50">DAW Sync</span>
+                    <span className="text-[8px] font-black uppercase mb-0.5 opacity-70">DAW Sync</span>
                     <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full transition-all ${isPlaying ? 'active-glow' : ''}`} 
                              style={{ backgroundColor: isPlaying ? t.accent : 'rgba(255,255,255,0.2)', '--accent': t.accent }} />
                         <span className="text-sm font-mono font-black px-2.5 py-1 rounded border" style={{ backgroundColor: 'rgba(0,0,0,0.4)', borderColor: t.border, color: '#fff' }}>
-                            {bpm} <span className="text-[9px] opacity-50 ml-1">BPM</span>
+                            {bpm} <span className="text-[9px] opacity-70 ml-1">BPM</span>
                         </span>
                     </div>
                 </div>
@@ -33,7 +33,6 @@ export default function Header({ t, bpm, isPlaying, activeSection, bridge }) {
                         key={i}
                         onClick={() => {
                             bridge.setActiveSection(i);
-                            // FIX: Use the granular native bridge endpoint
                             bridge.changeCurrentPage(i);
                         }}
                         className="px-5 py-2 rounded text-[9px] font-black uppercase tracking-widest transition-all theme-transition"

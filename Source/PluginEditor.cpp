@@ -73,10 +73,14 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 if (args.size() == 2) audioProcessor.setTrackSequenceNative((int)args[0], args[1].toString(), false);
                 completion(juce::var());
             })
-        // NEW: Polymeter Native Endpoints
         .withNativeFunction("setTrackLength", [this](const auto& args, auto completion)
             {
                 if (args.size() == 2) audioProcessor.setTrackLengthNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1], false);
+                completion(juce::var());
+            })
+        .withNativeFunction("setTrackTimeDivision", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 2) audioProcessor.setTrackTimeDivisionNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1]);
                 completion(juce::var());
             })
         .withNativeFunction("randomizeTrack", [this](const auto& args, auto completion)

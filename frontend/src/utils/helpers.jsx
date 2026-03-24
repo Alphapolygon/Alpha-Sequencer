@@ -36,7 +36,7 @@ export const createEmptyPattern = (name) => ({
         swings: Array(16).fill(0).map(()=>Array(32).fill(0)),
         repeats: Array(16).fill(1).map(()=>Array(32).fill(1)),
         midiKeys: Array(16).fill(0).map((_,i)=>midiToNoteName(36 + i)),
-        trackStates: Array(16).fill(0).map(()=>({mute:false,solo:false,midiChannel:1,scale:0,sequence:"1",length:16})),
+        trackStates: Array(16).fill(0).map(()=>({mute:false,solo:false,midiChannel:1,scale:0,sequence:"1",length:16,timeDivision:3})),
     }
 });
 

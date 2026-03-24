@@ -139,7 +139,6 @@ namespace
             {
                 const int note = msg.getNoteNumber();
 
-                // Triggers (Pads)
                 if (note >= 36 && note <= 43)
                 {
                     const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
@@ -156,7 +155,6 @@ namespace
                 }
                 else
                 {
-                    // Piano keys for sequence input
                     const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
                     processor.appendNoteToTrackSequenceNative(instrument, note);
                     return true;
@@ -188,9 +186,8 @@ namespace
             return juce::MidiMessage(data, sizeof(data));
         }
     };
-} // namespace
+}
 
-// Shared resource focus management
 void MiniLAB3StepSequencerAudioProcessor::claimHardwareOwnership()
 {
     if (hardwareManager->owner.load(std::memory_order_acquire) == this)

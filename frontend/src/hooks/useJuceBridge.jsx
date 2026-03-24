@@ -18,6 +18,7 @@ const REQUIRED_NATIVE_FUNCTIONS = [
     'setCurrentPage',
     'setWindowScale',
     'setTrackLength',
+    'setTrackTimeDivision',
     'randomizeTrack',
     'randomizeParameter',
     'setTrackScale',
@@ -164,6 +165,14 @@ export function useJuceBridge() {
             return { ...data, trackStates: nextTrackStates };
         });
         if (backendReady) invokeNativeWithTimeout('setTrackLength', [tIdx, len]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    const setTrackTimeDivision = useCallback((tIdx, divIdx) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, timeDivision: divIdx } : state);
+            return { ...data, trackStates: nextTrackStates };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackTimeDivision', [tIdx, divIdx]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const setTrackSequence = useCallback((tIdx, seq) => {
@@ -343,8 +352,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-
-            // FIX: Append sequence changes driven by hardware piano keys!
             case 'trackSequenceChanged':
                 if (Number.isInteger(diff.trackIndex) && typeof diff.sequence === 'string') {
                     applyPatternDataPatch(activeIdxRef.current, (data) => {
@@ -507,7 +514,7 @@ export function useJuceBridge() {
         editStepActive, editStepParameter, editTrackState, editTrackMidiKey,
         editTrackMidiChannel, editClearTrack,
         
-        setTrackLength, setTrackSequence, setTrackScale,
+        setTrackLength, setTrackTimeDivision, setTrackSequence, setTrackScale,
         randomizeTrack, randomizeParameter,
 
         backendReady, uiReady, backendStatus, debugInfo, hasHydrated,

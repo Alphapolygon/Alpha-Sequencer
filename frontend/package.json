@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "juce-framework-frontend": "file:/C:/Temp/JUCE/modules/juce_gui_extra/native/javascript",
+    "juce-framework-frontend": "file:/C:/JUCE/modules/juce_gui_extra/native/javascript",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },

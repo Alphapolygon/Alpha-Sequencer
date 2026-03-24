@@ -90,7 +90,7 @@ public:
     void setTrackSequenceNative(int tIdx, const juce::String& seqString, bool emitUiDiff = false);
     void appendNoteToTrackSequenceNative(int tIdx, int midiNote);
 
-    // NEW: Polymeter Endpoint
+    void setTrackTimeDivisionNative(int pIdx, int tIdx, int divisionIdx);
     void setTrackLengthNative(int pIdx, int tIdx, int length, bool emitUiDiff = false);
 
     void randomizeTrackNative(int pIdx, int tIdx);
@@ -109,12 +109,16 @@ public:
     std::atomic<int> trackMidiChannels[MiniLAB3Seq::kNumTracks];
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     std::atomic<int> trackLengths[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<int> trackTimeDivisions[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
 
     std::atomic<int> trackScales[MiniLAB3Seq::kNumTracks];
     std::atomic<int> trackSequenceLengths[MiniLAB3Seq::kNumTracks];
     std::atomic<int> trackPitchSequences[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kMaxSequenceLength];
     std::atomic<int> currentSequenceIndex[MiniLAB3Seq::kNumTracks];
+
+    int lastNoteOnPerTrack[MiniLAB3Seq::kNumTracks];
+    int lastChannelOnPerTrack[MiniLAB3Seq::kNumTracks];
 
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 

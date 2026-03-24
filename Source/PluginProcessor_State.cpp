@@ -107,9 +107,12 @@ void MiniLAB3StepSequencerAudioProcessor::setStepDataFromVar(const juce::var& st
                                 if (trackState->hasProperty("scale")) trackScales[t].store(static_cast<int>(trackState->getProperty("scale")), std::memory_order_release);
                                 if (trackState->hasProperty("sequence")) setTrackSequenceNative(t, trackState->getProperty("sequence").toString(), false);
 
-                                // Parse loop length
                                 if (trackState->hasProperty("length")) {
                                     trackLengths[pIdx][t].store(juce::jlimit(1, MiniLAB3Seq::kNumSteps, static_cast<int>(trackState->getProperty("length"))), std::memory_order_release);
+                                }
+
+                                if (trackState->hasProperty("timeDivision")) {
+                                    trackTimeDivisions[pIdx][t].store(juce::jlimit(0, 4, static_cast<int>(trackState->getProperty("timeDivision"))), std::memory_order_release);
                                 }
                             }
                         }
@@ -180,8 +183,8 @@ juce::var MiniLAB3StepSequencerAudioProcessor::buildPatternDataVar(int patternIn
             seqStr += juce::String(trackPitchSequences[track][i].load(std::memory_order_acquire)) + " ";
         state->setProperty("sequence", seqStr.trim());
 
-        // Export loop length
         state->setProperty("length", trackLengths[patternIndex][track].load(std::memory_order_acquire));
+        state->setProperty("timeDivision", trackTimeDivisions[patternIndex][track].load(std::memory_order_acquire));
 
         trackStates.add(juce::var(state.get()));
     }
@@ -259,6 +262,7 @@ void MiniLAB3StepSequencerAudioProcessor::getStateInformation(juce::MemoryBlock&
             auto* trackElement = patternXml->createNewChildElement("Track");
             trackElement->setAttribute("name", instrumentNames[track]);
             trackElement->setAttribute("length", trackLengths[p][track].load(std::memory_order_acquire));
+            trackElement->setAttribute("timeDivision", trackTimeDivisions[p][track].load(std::memory_order_acquire));
             trackElement->setAttribute("midiChannel", trackMidiChannels[track].load(std::memory_order_acquire));
             trackElement->setAttribute("scale", trackScales[track].load(std::memory_order_acquire));
 
@@ -352,6 +356,9 @@ void MiniLAB3StepSequencerAudioProcessor::setStateInformation(const void* data, 
                 const int savedLength = trackElement->getIntAttribute("length", 0);
                 if (savedLength > 0)
                     trackLengths[pIdx][track].store(juce::jlimit(1, MiniLAB3Seq::kNumSteps, savedLength), std::memory_order_release);
+
+                if (trackElement->hasAttribute("timeDivision"))
+                    trackTimeDivisions[pIdx][track].store(juce::jlimit(0, 4, trackElement->getIntAttribute("timeDivision", 3)), std::memory_order_release);
 
                 const auto steps = trackElement->getStringAttribute("steps");
                 juce::StringArray vels, gates, probs, reps, shifts, swings;

@@ -41,10 +41,10 @@
  #define JucePlugin_Enable_ARA             0
 #endif
 #ifndef  JucePlugin_Name
- #define JucePlugin_Name                   "MiniLAB3 Step Sequencer"
+ #define JucePlugin_Name                   "ALPHA Sequencer"
 #endif
 #ifndef  JucePlugin_Desc
- #define JucePlugin_Desc                   "MiniLAB3 Step Sequencer"
+ #define JucePlugin_Desc                   "ALPHA Sequencer"
 #endif
 #ifndef  JucePlugin_Manufacturer
  #define JucePlugin_Manufacturer           "Alphapolygon"
@@ -71,7 +71,7 @@
  #define JucePlugin_ProducesMidiOutput     1
 #endif
 #ifndef  JucePlugin_IsMidiEffect
- #define JucePlugin_IsMidiEffect           1
+ #define JucePlugin_IsMidiEffect           0
 #endif
 #ifndef  JucePlugin_EditorRequiresKeyboardFocus
  #define JucePlugin_EditorRequiresKeyboardFocus  0
@@ -95,25 +95,25 @@
  #define JucePlugin_Vst3Category           "Instrument|External"
 #endif
 #ifndef  JucePlugin_AUMainType
- #define JucePlugin_AUMainType             'aumi'
+ #define JucePlugin_AUMainType             'aumf'
 #endif
 #ifndef  JucePlugin_AUSubType
  #define JucePlugin_AUSubType              JucePlugin_PluginCode
 #endif
 #ifndef  JucePlugin_AUExportPrefix
- #define JucePlugin_AUExportPrefix         MiniLAB3StepSequencerAU
+ #define JucePlugin_AUExportPrefix         ALPHASequencerAU
 #endif
 #ifndef  JucePlugin_AUExportPrefixQuoted
- #define JucePlugin_AUExportPrefixQuoted   "MiniLAB3StepSequencerAU"
+ #define JucePlugin_AUExportPrefixQuoted   "ALPHASequencerAU"
 #endif
 #ifndef  JucePlugin_AUManufacturerCode
  #define JucePlugin_AUManufacturerCode     JucePlugin_ManufacturerCode
 #endif
 #ifndef  JucePlugin_CFBundleIdentifier
- #define JucePlugin_CFBundleIdentifier     com.Alphapolygon.MiniLAB3StepSequencer
+ #define JucePlugin_CFBundleIdentifier     com.Alphapolygon.ALPHASequencer
 #endif
 #ifndef  JucePlugin_AAXIdentifier
- #define JucePlugin_AAXIdentifier          com.Alphapolygon.MiniLAB3StepSequencer
+ #define JucePlugin_AAXIdentifier          com.Alphapolygon.ALPHASequencer
 #endif
 #ifndef  JucePlugin_AAXManufacturerCode
  #define JucePlugin_AAXManufacturerCode    JucePlugin_ManufacturerCode
@@ -122,7 +122,7 @@
  #define JucePlugin_AAXProductId           JucePlugin_PluginCode
 #endif
 #ifndef  JucePlugin_AAXCategory
- #define JucePlugin_AAXCategory            65536
+ #define JucePlugin_AAXCategory            0
 #endif
 #ifndef  JucePlugin_AAXDisableBypass
  #define JucePlugin_AAXDisableBypass       0
@@ -137,7 +137,7 @@
  #define JucePlugin_IAASubType             JucePlugin_PluginCode
 #endif
 #ifndef  JucePlugin_IAAName
- #define JucePlugin_IAAName                "Alphapolygon: MiniLAB3 Step Sequencer"
+ #define JucePlugin_IAAName                "Alphapolygon: ALPHA Sequencer"
 #endif
 #ifndef  JucePlugin_VSTNumMidiInputs
  #define JucePlugin_VSTNumMidiInputs       16
@@ -152,10 +152,10 @@
  #define JucePlugin_ARATransformationFlags  0
 #endif
 #ifndef  JucePlugin_ARAFactoryID
- #define JucePlugin_ARAFactoryID           "com.Alphapolygon.MiniLAB3StepSequencer.factory"
+ #define JucePlugin_ARAFactoryID           "com.Alphapolygon.ALPHASequencer.factory"
 #endif
 #ifndef  JucePlugin_ARADocumentArchiveID
- #define JucePlugin_ARADocumentArchiveID   "com.Alphapolygon.MiniLAB3StepSequencer.aradocumentarchive.1.0.0"
+ #define JucePlugin_ARADocumentArchiveID   "com.Alphapolygon.ALPHASequencer.aradocumentarchive.1.0.0"
 #endif
 #ifndef  JucePlugin_ARACompatibleArchiveIDs
  #define JucePlugin_ARACompatibleArchiveIDs  ""

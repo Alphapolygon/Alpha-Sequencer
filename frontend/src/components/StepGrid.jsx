@@ -46,7 +46,7 @@ const StepCell = React.memo(({ isActive, isPlayhead, isOutBounds, trackColor, on
              style={{ 
                  backgroundColor: isOutBounds ? 'rgba(0,0,0,0.4)' : (isActive ? trackColor : 'rgba(255,255,255,0.10)'), 
                  borderColor: isPlayhead ? trackColor : 'rgba(0,0,0,0.4)',
-                 opacity: isOutBounds ? 0.2 : 1,
+                 opacity: isOutBounds ? 0.3 : 1,
                  boxShadow: isPlayhead ? `inset 0 0 5px ${trackColor}` : 'none',
                  transform: isPlayhead ? 'scaleY(1.1)' : 'none'
              }}>
@@ -59,7 +59,6 @@ export default function StepGrid({ t, activeP, selectedTrack, activeSection, bpm
     const [openMenuId, setOpenMenuId] = useState(null);
     const { activeSteps, trackStates, midiKeys } = activeP.data;
 
-    // Utilize independent loop lengths directly from state
     const lengths = trackStates.map(ts => ts.length || 16);
 
     return (
@@ -74,14 +73,14 @@ export default function StepGrid({ t, activeP, selectedTrack, activeSection, bpm
                         const isSecDimmed = activeSection !== -1 && activeSection !== secIdx;
                         return (
                             <div key={secIdx} className="flex-1 flex gap-1 rounded-sm relative transition-opacity"
-                                style={{ opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(tint, 0.4)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
-                                <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full opacity-40" style={{ backgroundColor: tint }} />
+                                style={{ opacity: isSecDimmed ? 0.4 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(tint, 0.4)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
+                                <div className="absolute bottom-0 left-1 right-1 h-[2px] rounded-full opacity-60" style={{ backgroundColor: tint }} />
                                 {Array(8).fill(0).map((_, i) => {
                                     const sIdx = (secIdx * 8) + i;
                                     return (
                                         <div key={sIdx} className="flex-1 flex justify-center items-end pb-1">
                                             <span className="text-[12px] font-mono font-bold transition-opacity" 
-                                                  style={{ color: t.text, opacity: 0.4 }}>{sIdx + 1}</span>
+                                                  style={{ color: t.text, opacity: 0.6 }}>{sIdx + 1}</span>
                                         </div>
                                     );
                                 })}
@@ -108,29 +107,26 @@ export default function StepGrid({ t, activeP, selectedTrack, activeSection, bpm
                                      backgroundColor: isTrackPlaying ? trackColor : 'rgba(0,0,0,0.5)',
                                      boxShadow: isTrackPlaying ? `0 0 10px ${trackColor}` : 'none'
                                  }} />
-                            <span className="text-[10px] font-mono font-bold opacity-30 w-4">{String(tIdx + 1).padStart(2, '0')}</span>
+                            <span className="text-[10px] font-mono font-bold opacity-60 w-4">{String(tIdx + 1).padStart(2, '0')}</span>
                             
-                            {/* Track Loop Length Input for Polymeter */}
                             <input type="number" min="1" max="32" value={currentLen} 
                                    onChange={(e) => bridge.setTrackLength(tIdx, parseInt(e.target.value) || 16)}
-                                   className="w-8 bg-transparent text-[10px] font-black text-center outline-none border-b border-white/10 focus:border-white/40" />
+                                   className="w-8 bg-transparent text-[10px] font-black text-center outline-none border-b border-white/20 focus:border-white/60" />
 
                             <span className="text-[10px] font-black uppercase tracking-tight flex-1 truncate" style={{ color: selectedTrack === tIdx ? '#fff' : t.text }}>Track {tIdx + 1}</span>
                             
                             <button onClick={(e) => { e.stopPropagation(); bridge.randomizeTrack(tIdx); }} 
-                                    className="p-1 px-1.5 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all hover:bg-white/10" 
+                                    className="p-1 px-1.5 opacity-50 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all hover:bg-white/10" 
                                     style={{ borderColor: t.border, color: t.accent }}>R</button>
                             <button onClick={(e) => { e.stopPropagation(); bridge.editClearTrack(bridge.activeIdx, tIdx); }} 
-                                    className="p-1 opacity-30 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" 
+                                    className="p-1 opacity-50 hover:opacity-100 text-[8px] font-black uppercase border rounded transition-all" 
                                     style={{ borderColor: t.border, color: t.text }}>CLR</button>
-                       
                         </div>
                         
                         <div className="w-[140px] flex gap-1">
                             <div className="flex-1">
                                 <CustomDropdown value={midiKeys[tIdx]} options={MIDI_OPTIONS} theme={t} trackColor={trackColor} isSelected={selectedTrack === tIdx} isOpen={openMenuId === `note-${tIdx}`} onToggle={() => setOpenMenuId(prev => prev === `note-${tIdx}` ? null : `note-${tIdx}`)} onClose={() => setOpenMenuId(null)} onChange={(note) => bridge.editTrackMidiKey(tIdx, note)} />
                             </div>
-                       
                         </div>
 
                         <div className="flex gap-0.5">
@@ -149,7 +145,7 @@ export default function StepGrid({ t, activeP, selectedTrack, activeSection, bpm
                                 const isSecDimmed = activeSection !== -1 && activeSection !== secIdx;
                                 const secColor = t.colors[secIdx % t.colors.length];
                                 return (
-                                    <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative" style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.3 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
+                                    <div key={secIdx} className="flex-1 flex gap-1 rounded-sm p-0.5 transition-all relative" style={{ backgroundColor: activeSection === secIdx ? 'rgba(255,255,255,0.10)' : 'transparent', opacity: isSecDimmed ? 0.4 : 1, borderLeft: secIdx > 0 ? `2px solid ${hexToRgba(secColor, 0.2)}` : 'none', paddingLeft: secIdx > 0 ? '6px' : '2px', marginLeft: secIdx > 0 ? '-2px' : '0' }}>
                                         {Array(8).fill(0).map((_, i) => {
                                             const sIdx = (secIdx * 8) + i;
                                             return (

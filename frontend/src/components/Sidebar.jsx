@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PATTERN_LABELS, THEMES, Icons } from '../utils/constants';
+import { PATTERN_LABELS, THEMES, Icons, TIME_DIVISIONS } from '../utils/constants';
 import { hexToRgba, generateMidi } from '../utils/helpers';
 
 const SCALES = ["Major", "Minor", "Dorian", "Mixolydian", "Pentatonic Maj", "Pentatonic Min", "Chromatic"];
@@ -9,6 +9,7 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
     
     const [scaleIdx, setScaleIdx] = useState(0); 
+    const [divIdx, setDivIdx] = useState(3); 
     const [sequenceText, setSequenceText] = useState("1"); 
 
     useEffect(() => {
@@ -16,6 +17,7 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
             const trackState = activeP.data.trackStates[selectedTrack];
             if (trackState) {
                 setScaleIdx(trackState.scale ?? 0);
+                setDivIdx(trackState.timeDivision ?? 3);
                 setSequenceText(trackState.sequence ?? "1");
             }
         }
@@ -39,13 +41,11 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
     };
 
     const handleSequenceSubmit = () => {
-        // FIX: Route through the bridge so React updates its internal memory
         bridge.setTrackSequence(selectedTrack, sequenceText);
     };
 
     const handleScaleChange = (idx) => {
         setScaleIdx(idx);
-        // FIX: Route through the bridge so React updates its internal memory
         bridge.setTrackScale(selectedTrack, idx);
     };
 
@@ -75,7 +75,7 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
             <div className="flex-1 p-4 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
                 
                 <section>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-3 flex items-center gap-2">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-3 flex items-center gap-2">
                         <Icons.Palette /> Interface Theme
                     </h3>
                     <div className="relative">
@@ -111,7 +111,22 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
                 </section>
 
                 <section className="pt-4 border-t" style={{ borderColor: t.border }}>
-                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-3 flex items-center justify-between">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-3">Track Spacing</h3>
+                    <div className="grid grid-cols-5 gap-1">
+                        {TIME_DIVISIONS.map((label, idx) => (
+                            <button key={label} onClick={() => bridge.setTrackTimeDivision(selectedTrack, idx)}
+                                className="py-2 text-[9px] font-bold rounded border transition-all"
+                                style={{ 
+                                    backgroundColor: divIdx === idx ? t.accent : 'rgba(0,0,0,0.3)',
+                                    borderColor: divIdx === idx ? t.accent : t.border,
+                                    color: divIdx === idx ? '#000' : t.text
+                                }}>{label}</button>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="pt-4 border-t" style={{ borderColor: t.border }}>
+                    <h3 className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-3 flex items-center justify-between">
                         <span>Track {selectedTrack + 1} Pitch Seq</span>
                         <span style={{ color: t.accent }}>{SCALES[scaleIdx]}</span>
                     </h3>
@@ -146,10 +161,16 @@ export default function Sidebar({ t, activeIdx, themeIdx, activeP, bpm, bridge }
                                 '--tw-ring-color': t.accent 
                             }}
                         />
-                        <p className="text-[8px] opacity-40 uppercase tracking-wider text-right">Numbers = Scale Degrees</p>
+                        <p className="text-[8px] opacity-60 uppercase tracking-wider text-right">Numbers = Scale Degrees</p>
                     </div>
                 </section>
 
+                <div className="mt-auto flex flex-col gap-2">
+                    <button onClick={() => generateMidi(activeP.data, bpm)} className="w-full py-4 rounded text-[10px] font-black uppercase tracking-widest transition-all shadow-xl hover:scale-[1.02] active:scale-95"
+                            style={{ backgroundColor: t.accent, color: '#000' }}>
+                        Full MIDI Export
+                    </button>
+                </div>
             </div>
         </aside>
     );

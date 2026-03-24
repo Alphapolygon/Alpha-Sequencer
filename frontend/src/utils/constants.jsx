@@ -5,6 +5,8 @@ export const MIDI_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8].flatMap(o => NOTES.map(n
 export const PATTERN_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 export const TAB_TO_KEY = { 'Velocity': 'velocities', 'Gate': 'gates', 'Probability': 'probabilities', 'Shift': 'shifts', 'Swing': 'swings' };
 
+export const TIME_DIVISIONS = ["1/2", "1/4", "1/8", "1/16", "1/32"];
+
 export const UI_SCALES = [
     { label: "75%", value: 0.75 },
     { label: "85%", value: 0.85 },
@@ -15,12 +17,17 @@ export const UI_SCALES = [
 ];
 
 export const THEMES = [
-    { name: "Alpha", bg: "#06080b", panel: "#12151c", sidebar: "#0d1015", border: "rgba(255,255,255,0.05)", text: "#94a3b8", accent: "#fb923c", colors: ["#e879f9", "#fb923c", "#facc15", "#4ade80"] },
-    { name: "Cyberpunk", bg: "#0d0221", panel: "#190e2f", sidebar: "#120a24", border: "rgba(0,255,255,0.1)", text: "#00ffff", accent: "#ff00ff", colors: ["#ff00ff", "#00ffff", "#ffff00", "#7cfc00"] },
-    { name: "Midnight", bg: "#020617", panel: "#0f172a", sidebar: "#080c1a", border: "rgba(99,102,241,0.15)", text: "#94a3b8", accent: "#6366f1", colors: ["#6366f1", "#a855f7", "#d946ef", "#ec4899"] },
-    { name: "Solar", bg: "#1c0a00", panel: "#2d1400", sidebar: "#220f00", border: "rgba(251,146,60,0.1)", text: "#fdba74", accent: "#f97316", colors: ["#fcd34d", "#fb923c", "#f87171", "#ef4444"] },
-    { name: "Forest", bg: "#020d08", panel: "#061f13", sidebar: "#04150d", border: "rgba(74,222,128,0.1)", text: "#86efac", accent: "#22c55e", colors: ["#4ade80", "#22c55e", "#16a34a", "#15803d"] },
-    { name: "Monochrome", bg: "#0f172a", panel: "#1e293b", sidebar: "#111827", border: "rgba(255,255,255,0.1)", text: "#cbd5e1", accent: "#ffffff", colors: ["#f8fafc", "#cbd5e1", "#94a3b8", "#64748b"] }
+    { name: "Alpha", bg: "#06080b", panel: "#12151c", sidebar: "#0d1015", border: "rgba(255,255,255,0.1)", text: "#e2e8f0", accent: "#fb923c", colors: ["#e879f9", "#fb923c", "#facc15", "#4ade80"] },
+    { name: "Cyberpunk", bg: "#0d0221", panel: "#190e2f", sidebar: "#120a24", border: "rgba(0,255,255,0.15)", text: "#e0ffff", accent: "#ff00ff", colors: ["#ff00ff", "#00ffff", "#ffff00", "#7cfc00"] },
+    { name: "Midnight", bg: "#020617", panel: "#0f172a", sidebar: "#080c1a", border: "rgba(99,102,241,0.2)", text: "#e2e8f0", accent: "#6366f1", colors: ["#6366f1", "#a855f7", "#d946ef", "#ec4899"] },
+    { name: "Solar", bg: "#1c0a00", panel: "#2d1400", sidebar: "#220f00", border: "rgba(251,146,60,0.15)", text: "#ffedd5", accent: "#f97316", colors: ["#fcd34d", "#fb923c", "#f87171", "#ef4444"] },
+    { name: "Forest", bg: "#020d08", panel: "#061f13", sidebar: "#04150d", border: "rgba(74,222,128,0.15)", text: "#dcfce7", accent: "#22c55e", colors: ["#4ade80", "#22c55e", "#16a34a", "#15803d"] },
+    { name: "Monochrome", bg: "#0f172a", panel: "#1e293b", sidebar: "#111827", border: "rgba(255,255,255,0.15)", text: "#f8fafc", accent: "#ffffff", colors: ["#f8fafc", "#cbd5e1", "#94a3b8", "#64748b"] },
+    // NEW THEMES
+    { name: "Dracula", bg: "#282a36", panel: "#44475a", sidebar: "#383a59", border: "rgba(255,255,255,0.1)", text: "#f8f8f2", accent: "#ff79c6", colors: ["#ff79c6", "#bd93f9", "#50fa7b", "#f1fa8c"] },
+    { name: "Synthwave", bg: "#2b213a", panel: "#241b2f", sidebar: "#1e1626", border: "rgba(255,42,109,0.2)", text: "#f8eaff", accent: "#ff2a6d", colors: ["#ff2a6d", "#d1f7ff", "#05d9e8", "#01ffe6"] },
+    { name: "Ocean", bg: "#020617", panel: "#082f49", sidebar: "#041c2c", border: "rgba(56,189,248,0.2)", text: "#e0f2fe", accent: "#0ea5e9", colors: ["#38bdf8", "#0ea5e9", "#0284c7", "#2dd4bf"] },
+    { name: "Matrix", bg: "#000000", panel: "#001100", sidebar: "#000a00", border: "rgba(0,255,0,0.2)", text: "#ccffcc", accent: "#00ff00", colors: ["#00ff00", "#33ff33", "#66ff66", "#99ff99"] }
 ];
 
 export const Icons = {
