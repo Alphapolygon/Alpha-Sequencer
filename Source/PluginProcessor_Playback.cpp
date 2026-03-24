@@ -21,7 +21,7 @@ void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int)
         event = {};
 
     droppedNotesCount.store(0, std::memory_order_release);
-    droppedHWMsgs.store(0, std::memory_order_release); // Reset telemetry
+    droppedHWMsgs.store(0, std::memory_order_release);
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg)
@@ -65,8 +65,7 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
         if (isHardwareControl && msg.getRawDataSize() <= 3)
         {
-            // Only process raw hardware CCs into the queue if this instance owns the hardware
-            if (isHardwareOwner())
+            if (isHardwareOwner()) // Ownership check for HW CCs
             {
                 auto writeHandle = hwFifo.write(1);
                 if (writeHandle.blockSize1 > 0) {
@@ -75,7 +74,6 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
                 }
                 else {
-                    // If the FIFO is perfectly full, safely log it for telemetry without blocking
                     droppedHWMsgs.fetch_add(1, std::memory_order_relaxed);
                 }
             }
@@ -121,6 +119,10 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     queuedEventCount = 0;
                     for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
                         midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
+
+                    // Reset generative sequences
+                    for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
+                        currentSequenceIndex[t].store(0, std::memory_order_release);
                 }
 
                 const int firstStep = static_cast<int>(std::floor(ppqStart * 4.0));
@@ -155,7 +157,26 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                             continue;
 
                         const int channel = juce::jlimit(1, 16, trackMidiChannels[track].load(std::memory_order_relaxed));
-                        const int note = static_cast<int>(std::round(noteParams[track]->load()));
+
+                        // Generative Pitch Math
+                        const int rootNote = static_cast<int>(std::round(noteParams[track]->load()));
+                        const int scaleType = trackScales[track].load(std::memory_order_relaxed);
+                        const int seqLen = trackSequenceLengths[track].load(std::memory_order_relaxed);
+                        const int seqIdx = currentSequenceIndex[track].load(std::memory_order_relaxed) % seqLen;
+
+                        int degree = trackPitchSequences[track][seqIdx].load(std::memory_order_relaxed);
+                        int zeroBasedDegree = degree - 1;
+
+                        const int scaleLen = MiniLAB3Seq::kScaleLengths[scaleType];
+
+                        int octaveShift = (zeroBasedDegree >= 0) ? (zeroBasedDegree / scaleLen) : ((zeroBasedDegree - scaleLen + 1) / scaleLen);
+                        int noteIndex = (zeroBasedDegree % scaleLen);
+                        if (noteIndex < 0) noteIndex += scaleLen;
+
+                        const int noteOffset = MiniLAB3Seq::kScaleOffsets[scaleType][noteIndex];
+                        int note = juce::jlimit(0, 127, rootNote + noteOffset + (octaveShift * 12));
+
+                        currentSequenceIndex[track].store((seqIdx + 1) % seqLen, std::memory_order_release);
 
                         const float velocity = juce::jlimit(0.0f, 1.0f, stepData.velocity * masterVolParam->load());
                         const float gate = juce::jlimit(0.0f, 1.0f, stepData.gate);

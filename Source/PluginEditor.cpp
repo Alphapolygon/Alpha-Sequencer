@@ -40,62 +40,78 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
 
         .withNativeFunction("setStepActive", [this](const auto& args, auto completion)
             {
-                if (args.size() == 4)
-                    audioProcessor.setStepActiveNative((int)args[0], (int)args[1], (int)args[2], (bool)args[3], false);
+                if (args.size() == 4) audioProcessor.setStepActiveNative((int)args[0], (int)args[1], (int)args[2], (bool)args[3], false);
                 completion(juce::var());
             })
         .withNativeFunction("setStepParameter", [this](const auto& args, auto completion)
             {
-                if (args.size() == 5)
-                    audioProcessor.setStepParameterNative((int)args[0], (int)args[1], (int)args[2], args[3].toString(), (float)(double)args[4], false);
+                if (args.size() == 5) audioProcessor.setStepParameterNative((int)args[0], (int)args[1], (int)args[2], args[3].toString(), (float)(double)args[4], false);
                 completion(juce::var());
             })
         .withNativeFunction("setTrackState", [this](const auto& args, auto completion)
             {
-                if (args.size() == 3)
-                    audioProcessor.setTrackStateNative((int)args[0], args[1].toString(), (bool)args[2], false);
+                if (args.size() == 3) audioProcessor.setTrackStateNative((int)args[0], args[1].toString(), (bool)args[2], false);
                 completion(juce::var());
             })
         .withNativeFunction("setTrackMidiKey", [this](const auto& args, auto completion)
             {
-                if (args.size() == 2)
-                    audioProcessor.setTrackMidiKeyNative((int)args[0], (int)args[1], false);
+                if (args.size() == 2) audioProcessor.setTrackMidiKeyNative((int)args[0], (int)args[1], false);
                 completion(juce::var());
             })
         .withNativeFunction("setTrackMidiChannel", [this](const auto& args, auto completion)
             {
-                if (args.size() == 2)
-                    audioProcessor.setTrackMidiChannelNative((int)args[0], (int)args[1], false);
+                if (args.size() == 2) audioProcessor.setTrackMidiChannelNative((int)args[0], (int)args[1], false);
+                completion(juce::var());
+            })
+        .withNativeFunction("setTrackScale", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 2) audioProcessor.setTrackScaleNative((int)args[0], (int)args[1], false);
+                completion(juce::var());
+            })
+        .withNativeFunction("setTrackSequence", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 2) audioProcessor.setTrackSequenceNative((int)args[0], args[1].toString(), false);
+                completion(juce::var());
+            })
+        // NEW: Polymeter Native Endpoints
+        .withNativeFunction("setTrackLength", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 2) audioProcessor.setTrackLengthNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1], false);
+                completion(juce::var());
+            })
+        .withNativeFunction("randomizeTrack", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 1) audioProcessor.randomizeTrackNative(audioProcessor.activePatternIndex.load(), (int)args[0]);
+                completion(juce::var());
+            })
+        .withNativeFunction("randomizeParameter", [this](const auto& args, auto completion)
+            {
+                if (args.size() == 2) audioProcessor.randomizeParameterNative(audioProcessor.activePatternIndex.load(), (int)args[0], args[1].toString());
                 completion(juce::var());
             })
         .withNativeFunction("clearTrack", [this](const auto& args, auto completion)
             {
-                if (args.size() == 2)
-                    audioProcessor.clearTrackNative((int)args[0], (int)args[1], false);
+                if (args.size() == 2) audioProcessor.clearTrackNative((int)args[0], (int)args[1], false);
                 completion(juce::var());
             })
         .withNativeFunction("setActivePattern", [this](const auto& args, auto completion)
             {
-                if (args.size() == 1)
-                    audioProcessor.setActivePatternNative((int)args[0], false);
+                if (args.size() == 1) audioProcessor.setActivePatternNative((int)args[0], false);
                 completion(juce::var());
             })
         .withNativeFunction("setSelectedTrack", [this](const auto& args, auto completion)
             {
-                if (args.size() == 1)
-                    audioProcessor.setSelectedTrackNative((int)args[0], false);
+                if (args.size() == 1) audioProcessor.setSelectedTrackNative((int)args[0], false);
                 completion(juce::var());
             })
         .withNativeFunction("setCurrentPage", [this](const auto& args, auto completion)
             {
-                if (args.size() == 1)
-                    audioProcessor.setCurrentPageNative((int)args[0], false);
+                if (args.size() == 1) audioProcessor.setCurrentPageNative((int)args[0], false);
                 completion(juce::var());
             })
         .withNativeFunction("saveUiMetadata", [this](const auto& args, auto completion)
             {
-                if (!args.isEmpty())
-                    juce::MessageManager::callAsync([this, stateVar = args[0]]() { audioProcessor.updateUiMetadataFromVar(stateVar); });
+                if (!args.isEmpty()) juce::MessageManager::callAsync([this, stateVar = args[0]]() { audioProcessor.updateUiMetadataFromVar(stateVar); });
                 completion(juce::var());
             })
         .withNativeFunction("requestInitialState", [this](const auto&, auto completion)
@@ -104,10 +120,9 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
             })
         .withNativeFunction("uiReadyForEngineState", [this](const auto&, auto completion)
             {
-                juce::MessageManager::callAsync([this]()
-                    {
-                        isUiConnected.store(true, std::memory_order_release);
-                        audioProcessor.claimHardwareOwnership();
+                juce::MessageManager::callAsync([this]() {
+                    isUiConnected.store(true, std::memory_order_release);
+                    audioProcessor.claimHardwareOwnership();
                     });
                 completion(juce::var());
             })
@@ -116,10 +131,9 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 if (!args.isEmpty() && (args[0].isDouble() || args[0].isInt()))
                 {
                     const double scale = static_cast<double>(args[0]);
-                    juce::MessageManager::callAsync([this, scale]()
-                        {
-                            audioProcessor.uiScale.store(static_cast<float>(scale), std::memory_order_release);
-                            setSize(static_cast<int>(1460 * scale), static_cast<int>(1024 * scale));
+                    juce::MessageManager::callAsync([this, scale]() {
+                        audioProcessor.uiScale.store(static_cast<float>(scale), std::memory_order_release);
+                        setSize(static_cast<int>(1460 * scale), static_cast<int>(1024 * scale));
                         });
                 }
                 completion(juce::var());
@@ -139,11 +153,8 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
     )
 {
     addAndMakeVisible(webComponent);
-
     setResizable(true, true);
-    if (auto* constrainer = getConstrainer())
-        constrainer->setFixedAspectRatio(1460.0 / 1024.0);
-
+    if (auto* constrainer = getConstrainer()) constrainer->setFixedAspectRatio(1460.0 / 1024.0);
     setResizeLimits(730, 512, 2920, 2048);
 
     const float initialScale = audioProcessor.uiScale.load(std::memory_order_acquire);
@@ -151,8 +162,7 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
 
 #if JUCE_WEB_BROWSER_RESOURCE_PROVIDER_AVAILABLE
     juce::String rootUrl = webComponent.getResourceProviderRoot();
-    if (!rootUrl.endsWithChar('/'))
-        rootUrl += "/";
+    if (!rootUrl.endsWithChar('/')) rootUrl += "/";
     webComponent.goToURL(rootUrl + "index.html");
 #else
     webComponent.goToURL("about:blank");
@@ -173,14 +183,10 @@ void MiniLAB3StepSequencerAudioProcessorEditor::resized()
 
 void MiniLAB3StepSequencerAudioProcessorEditor::timerCallback()
 {
-    if (!isUiConnected.load(std::memory_order_acquire))
-        return;
+    if (!isUiConnected.load(std::memory_order_acquire)) return;
 
-    // Detect if the user has clicked inside this plugin's window to claim hardware focus
     if (auto* peer = getPeer()) {
-        if (peer->isFocused()) {
-            audioProcessor.claimHardwareOwnership();
-        }
+        if (peer->isFocused()) audioProcessor.claimHardwareOwnership();
     }
 
     pushPlaybackStateIfChanged();
@@ -233,7 +239,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushUiDiffEvents()
             payload->setProperty("stepIndex", diff.stepIndex);
             payload->setProperty("isActive", diff.boolValue);
             break;
-
         case UiDiffEventType::StepParameter:
             payload->setProperty("type", "stepParameterChanged");
             payload->setProperty("patternIndex", diff.patternIndex);
@@ -242,7 +247,6 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushUiDiffEvents()
             payload->setProperty("paramName", toParamName(static_cast<UiDiffParam>(diff.field)));
             payload->setProperty("value", static_cast<UiDiffParam>(diff.field) == UiDiffParam::Repeats ? diff.value : diff.floatValue * 100.0f);
             break;
-
         case UiDiffEventType::TrackState:
             payload->setProperty("type", "trackStateChanged");
             payload->setProperty("patternIndex", diff.patternIndex);
@@ -250,52 +254,55 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushUiDiffEvents()
             payload->setProperty("stateName", toTrackStateName(static_cast<UiDiffTrackState>(diff.field)));
             payload->setProperty("isEnabled", diff.boolValue);
             break;
-
         case UiDiffEventType::TrackMidiKey:
             payload->setProperty("type", "trackMidiKeyChanged");
             payload->setProperty("patternIndex", diff.patternIndex);
             payload->setProperty("trackIndex", diff.trackIndex);
             payload->setProperty("midiNote", diff.value);
             break;
-
         case UiDiffEventType::TrackMidiChannel:
             payload->setProperty("type", "trackMidiChannelChanged");
             payload->setProperty("patternIndex", diff.patternIndex);
             payload->setProperty("trackIndex", diff.trackIndex);
             payload->setProperty("midiChannel", diff.value);
             break;
-
         case UiDiffEventType::ActivePatternChanged:
             payload->setProperty("type", "activePatternChanged");
             payload->setProperty("activeIdx", diff.value);
             break;
-
         case UiDiffEventType::SelectedTrackChanged:
             payload->setProperty("type", "selectedTrackChanged");
             payload->setProperty("selectedTrack", diff.value);
             break;
-
         case UiDiffEventType::CurrentPageChanged:
             payload->setProperty("type", "currentPageChanged");
             payload->setProperty("currentPage", diff.value);
             payload->setProperty("activeSection", diff.extraValue);
             break;
-
         case UiDiffEventType::ClearPage:
             payload->setProperty("type", "pageCleared");
             payload->setProperty("patternIndex", diff.patternIndex);
             payload->setProperty("trackIndex", diff.trackIndex);
             payload->setProperty("pageIndex", diff.value);
             break;
-
         case UiDiffEventType::ClearTrack:
             payload->setProperty("type", "trackCleared");
             payload->setProperty("patternIndex", diff.patternIndex);
             payload->setProperty("trackIndex", diff.trackIndex);
+            break;
+        case UiDiffEventType::TrackSequenceChanged:
+            payload->setProperty("type", "trackSequenceChanged");
+            payload->setProperty("trackIndex", diff.trackIndex);
+            payload->setProperty("sequence", juce::String(diff.text));
+            break;
+        case UiDiffEventType::TrackLengthChanged:
+            payload->setProperty("type", "trackLengthChanged");
+            payload->setProperty("patternIndex", diff.patternIndex);
+            payload->setProperty("trackIndex", diff.trackIndex);
+            payload->setProperty("length", diff.value);
             break;
         }
 
         webComponent.emitEventIfBrowserIsVisible("engineDiff", juce::var(payload.get()));
     }
 }
-

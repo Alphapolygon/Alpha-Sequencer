@@ -39,7 +39,6 @@ namespace
 
             const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
 
-            // FIX: Track length is pulled from the exact active pattern context
             const int trackLength = processor.trackLengths[pIdx][instrument].load(std::memory_order_acquire);
             const int playingStep = (current16th >= 0 && trackLength > 0) ? (current16th % trackLength) : -1;
 
@@ -139,6 +138,8 @@ namespace
             else if (msg.isNoteOn())
             {
                 const int note = msg.getNoteNumber();
+
+                // Triggers (Pads)
                 if (note >= 36 && note <= 43)
                 {
                     const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
@@ -151,6 +152,13 @@ namespace
                     if (!currentState)
                         processor.setStepParameterNative(pIdx, instrument, step, "velocities", msg.getFloatVelocity(), true);
 
+                    return true;
+                }
+                else
+                {
+                    // Piano keys for sequence input
+                    const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+                    processor.appendNoteToTrackSequenceNative(instrument, note);
                     return true;
                 }
             }
@@ -182,20 +190,18 @@ namespace
     };
 } // namespace
 
+// Shared resource focus management
 void MiniLAB3StepSequencerAudioProcessor::claimHardwareOwnership()
 {
-    // If we already own it, do nothing
     if (hardwareManager->owner.load(std::memory_order_acquire) == this)
         return;
 
-    // Take ownership
     hardwareManager->owner.store(this, std::memory_order_release);
 
     if (hardwareManager->output == nullptr) {
         openHardwareOutput();
     }
     else {
-        // Force our sequencer's LEDs to the controller
         requestLedRefresh();
     }
 }
@@ -215,7 +221,6 @@ void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
         const juce::SpinLock::ScopedLockType lock(hardwareManager->lock);
         if (hardwareManager->output != nullptr)
         {
-            // Port is already open globally. Just claim it.
             hardwareManager->owner.store(this, std::memory_order_release);
             isAttemptingConnection.store(false, std::memory_order_release);
             requestLedRefresh();
@@ -267,7 +272,7 @@ void MiniLAB3StepSequencerAudioProcessor::openHardwareOutput()
 
 void MiniLAB3StepSequencerAudioProcessor::resetHardwareState()
 {
-    if (!isHardwareOwner()) return; // Only owner can reset hardware
+    if (!isHardwareOwner()) return;
 
     std::shared_ptr<juce::MidiOutput> localOutput;
     std::shared_ptr<ControllerProfile> localProfile;
@@ -296,7 +301,6 @@ void MiniLAB3StepSequencerAudioProcessor::timerCallback()
     if (initialising.load(std::memory_order_acquire))
         return;
 
-    // If we don't own the hardware, drain the FIFO to prevent buildup and return
     if (!isHardwareOwner()) {
         hwFifo.read(hwFifo.getNumReady());
         return;

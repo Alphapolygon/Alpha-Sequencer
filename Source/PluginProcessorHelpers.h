@@ -10,6 +10,32 @@ namespace MiniLAB3Seq
     inline constexpr int kNumPages = 4;
     inline constexpr int kNumPatterns = 10;
 
+    // Pitch Sequence Constants
+    inline constexpr int kMaxSequenceLength = 32;
+
+    enum ScaleType {
+        Major = 0,
+        Minor,
+        Dorian,
+        Mixolydian,
+        PentatonicMajor,
+        PentatonicMinor,
+        Chromatic
+    };
+
+    // The semitone offsets for each scale
+    inline constexpr int kScaleOffsets[][12] = {
+        {0, 2, 4, 5, 7, 9, 11},       // Major (7 notes)
+        {0, 2, 3, 5, 7, 8, 10},       // Minor (7 notes)
+        {0, 2, 3, 5, 7, 9, 10},       // Dorian (7 notes)
+        {0, 2, 4, 5, 7, 9, 10},       // Mixolydian (7 notes)
+        {0, 2, 4, 7, 9},              // Pentatonic Major (5 notes)
+        {0, 3, 5, 7, 10},             // Pentatonic Minor (5 notes)
+        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} // Chromatic (12 notes)
+    };
+
+    inline constexpr int kScaleLengths[] = { 7, 7, 7, 7, 5, 5, 12 };
+
     inline constexpr const char* kNoteNames[12] =
     {
         "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
@@ -87,6 +113,8 @@ namespace MiniLAB3Seq
             juce::DynamicObject::Ptr state = new juce::DynamicObject();
             state->setProperty("mute", false);
             state->setProperty("solo", false);
+            state->setProperty("scale", 0); // Default: Major
+            state->setProperty("sequence", "1"); // Default sequence
             trackStates.add(juce::var(state.get()));
         }
 

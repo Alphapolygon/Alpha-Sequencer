@@ -32,7 +32,9 @@ enum class UiDiffEventType : uint8_t
     SelectedTrackChanged,
     CurrentPageChanged,
     ClearPage,
-    ClearTrack
+    ClearTrack,
+    TrackSequenceChanged,
+    TrackLengthChanged // NEW: For polymeter syncing
 };
 
 enum class UiDiffParam : uint8_t
@@ -62,15 +64,15 @@ struct UiDiffEvent
     float floatValue = 0.0f;
     bool boolValue = false;
     uint8_t field = 0;
+    char text[64] = { 0 };
 };
 
-class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
+class MiniLAB3StepSequencerAudioProcessor;
 
 class ControllerProfile
 {
 public:
     virtual ~ControllerProfile() = default;
-
     virtual juce::String getDeviceNameSubstring() const = 0;
     virtual void initializeHardware(juce::MidiOutput* out) = 0;
     virtual void resetHardware(juce::MidiOutput* out) = 0;

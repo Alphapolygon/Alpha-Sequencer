@@ -10,15 +10,9 @@
 #include "PluginProcessorTypes.h"
 #include "PluginProcessorHelpers.h"
 
-struct HardwareMsg
-{
-    uint8_t d[3];
-    int len;
-};
+struct HardwareMsg { uint8_t d[3]; int len; };
+class MiniLAB3StepSequencerAudioProcessor;
 
-class MiniLAB3StepSequencerAudioProcessor; // Forward declaration
-
-// Global shared resource manager for the hardware connection
 struct HardwareManager {
     std::shared_ptr<juce::MidiOutput> output;
     std::shared_ptr<ControllerProfile> profile;
@@ -26,15 +20,13 @@ struct HardwareManager {
     std::atomic<MiniLAB3StepSequencerAudioProcessor*> owner{ nullptr };
 };
 
-class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor,
-    public juce::Timer
+class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor, public juce::Timer
 {
 public:
     MiniLAB3StepSequencerAudioProcessor();
     ~MiniLAB3StepSequencerAudioProcessor() override;
 
     int getGeneralMidiNote(int trackIndex);
-
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const juce::AudioProcessor::BusesLayout& layouts) const override;
@@ -55,15 +47,11 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
-    void updateTrackLength(int patternIndex, int trackIndex);
     void openHardwareOutput();
     void resetHardwareState();
-
-    // Hardware focus management
     void claimHardwareOwnership();
     bool isHardwareOwner() const;
     bool isHardwareConnected() const { return hardwareManager->output != nullptr; }
-
     void requestLedRefresh();
     void timerCallback() override;
 
@@ -97,6 +85,17 @@ public:
     void setTrackStateNative(int tIdx, const juce::String& stateName, bool isEnabled, bool emitUiDiff = false);
     void setTrackMidiKeyNative(int tIdx, int midiNote, bool emitUiDiff = false);
     void setTrackMidiChannelNative(int tIdx, int channel, bool emitUiDiff = false);
+
+    void setTrackScaleNative(int tIdx, int scaleType, bool emitUiDiff = false);
+    void setTrackSequenceNative(int tIdx, const juce::String& seqString, bool emitUiDiff = false);
+    void appendNoteToTrackSequenceNative(int tIdx, int midiNote);
+
+    // NEW: Polymeter Endpoint
+    void setTrackLengthNative(int pIdx, int tIdx, int length, bool emitUiDiff = false);
+
+    void randomizeTrackNative(int pIdx, int tIdx);
+    void randomizeParameterNative(int pIdx, int tIdx, const juce::String& paramName);
+
     void clearTrackNative(int pIdx, int tIdx, bool emitUiDiff = false);
     void clearPageNative(int pIdx, int tIdx, int pageIdx, bool emitUiDiff = false);
 
@@ -111,6 +110,11 @@ public:
     float lastFiredVelocity[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps];
     std::atomic<int> trackLengths[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks] = {};
     juce::String instrumentNames[MiniLAB3Seq::kNumTracks];
+
+    std::atomic<int> trackScales[MiniLAB3Seq::kNumTracks];
+    std::atomic<int> trackSequenceLengths[MiniLAB3Seq::kNumTracks];
+    std::atomic<int> trackPitchSequences[MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kMaxSequenceLength];
+    std::atomic<int> currentSequenceIndex[MiniLAB3Seq::kNumTracks];
 
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 
@@ -145,11 +149,8 @@ public:
 
 private:
     mutable juce::CriticalSection writerLock;
-
     std::atomic<uint8_t> activeTrackBufferIndex[MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks]{};
     StepData sequencerTrackBuffers[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps]{};
-
-    // Shared hardware state across all instances
     juce::SharedResourcePointer<HardwareManager> hardwareManager;
 
     std::atomic<bool> isAttemptingConnection{ false };
