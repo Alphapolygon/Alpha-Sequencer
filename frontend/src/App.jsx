@@ -1,66 +1,98 @@
-import React, { useEffect, useState } from 'react';
-import { THEMES } from './utils/constants';
-import { useJuceBridge } from './hooks/useJuceBridge';
-import Header from './components/Header';
-import Sidebar from './components/Sidebar/Sidebar';
-import StepGrid from './components/Grid/StepGrid';
-import AutomationLanes from './components/Automation/AutomationLanes';
+import React from 'react';
+import './App.css';
+import { THEMES } from './utils/constants.jsx';
+import { useJuceBridge } from './hooks/useJuceBridge.jsx';
+import { useViewportScale } from './hooks/useViewportScale.js';
+import { useBodyTheme } from './hooks/useBodyTheme.js';
+import BootScreen from './components/shared/BootScreen.jsx';
+import Header from './components/Header/Header.jsx';
+import Sidebar from './components/Sidebar/Sidebar.jsx';
+import StepGrid from './components/Grid/StepGrid.jsx';
+import AutomationLanes from './components/Automation/AutomationLanes.jsx';
+
+const BASE_WIDTH = 1460;
+const BASE_HEIGHT = 1024;
 
 export default function App() {
     const bridge = useJuceBridge();
-
     const {
-        patterns, activeIdx, isPlaying, bpm, activeSection,
-        selectedTrack, footerTab, themeIdx, visibleTracks,
-        setActiveSection, setCurrentPage, setSelectedTrack, setFooterTab,
-        backendReady, uiReady, backendStatus, debugInfo
+        patterns,
+        activeIdx,
+        isPlaying,
+        bpm,
+        activeSection,
+        selectedTrack,
+        footerTab,
+        themeIdx,
+        visibleTracks,
+        setFooterTab,
+        backendReady,
+        uiReady,
+        backendStatus,
+        debugInfo,
     } = bridge;
 
-    const t = THEMES[themeIdx] || THEMES[0];
-    const [scale, setScale] = useState({ x: 1, y: 1 });
-
-    useEffect(() => {
-        const handleResize = () => {
-            setScale({ x: window.innerWidth / 1460, y: window.innerHeight / 1024 });
-        };
-        window.addEventListener('resize', handleResize);
-        if (window.visualViewport) window.visualViewport.addEventListener('resize', handleResize);
-        handleResize(); setTimeout(handleResize, 10); 
-        return () => {
-            window.removeEventListener('resize', handleResize);
-            if (window.visualViewport) window.visualViewport.removeEventListener('resize', handleResize);
-        };
-    }, []);
-
-    useEffect(() => { document.body.style.backgroundColor = t.bg; }, [t.bg]);
+    const theme = THEMES[themeIdx] || THEMES[0];
+    const scale = useViewportScale(BASE_WIDTH, BASE_HEIGHT);
+    useBodyTheme(theme.bg);
 
     if (!backendReady || !uiReady) {
-        return (
-            <div style={{ backgroundColor: '#06080b', color: '#fb923c', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace' }}>
-                <h2>Alpha Sequencer Booting...</h2>
-                <div style={{ padding: '20px', border: '1px solid rgba(255,255,255,0.1)', marginTop: '20px', borderRadius: '8px', backgroundColor: '#12151c' }}>
-                    <p>Status: {backendStatus}</p><p style={{ color: '#94a3b8' }}>{debugInfo}</p>
-                </div>
-            </div>
-        );
+        return <BootScreen status={backendStatus} debugInfo={debugInfo} />;
     }
 
-    const activeP = patterns[activeIdx];
+    const activePattern = patterns[activeIdx];
 
     return (
-        <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', backgroundColor: t.bg }}>
-            <div className="flex flex-col font-sans select-none overflow-hidden theme-transition"
-                 style={{ backgroundColor: t.bg, color: t.text, '--theme-accent': t.accent, width: '1460px', height: '1024px', transform: `scale(${scale.x}, ${scale.y})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}
-                 onContextMenu={(e) => e.preventDefault()}>
-
-                <Header t={t} bpm={bpm} isPlaying={isPlaying} activeSection={activeSection} setActiveSection={setActiveSection} setCurrentPage={setCurrentPage} bridge={bridge} />
+        <div
+            className="app-root"
+            style={{ backgroundColor: theme.bg }}
+        >
+            <div
+                className="app-stage flex flex-col font-sans select-none overflow-hidden theme-transition"
+                style={{
+                    backgroundColor: theme.bg,
+                    color: theme.text,
+                    '--theme-accent': theme.accent,
+                    width: `${BASE_WIDTH}px`,
+                    height: `${BASE_HEIGHT}px`,
+                    transform: `scale(${scale.x}, ${scale.y})`,
+                }}
+                onContextMenu={(event) => event.preventDefault()}
+            >
+                <Header
+                    theme={theme}
+                    bpm={bpm}
+                    isPlaying={isPlaying}
+                    activeSection={activeSection}
+                    bridge={bridge}
+                />
 
                 <div className="flex-1 flex overflow-hidden">
-                    <StepGrid t={t} activeP={activeP} visibleTracks={visibleTracks} selectedTrack={selectedTrack} activeSection={activeSection} bridge={bridge} />
-                    <Sidebar t={t} bridge={bridge} activeP={activeP} />
+                    <StepGrid
+                        theme={theme}
+                        activePattern={activePattern}
+                        visibleTracks={visibleTracks}
+                        selectedTrack={selectedTrack}
+                        activeSection={activeSection}
+                        bridge={bridge}
+                    />
+
+                    <Sidebar
+                        theme={theme}
+                        activePattern={activePattern}
+                        bridge={bridge}
+                    />
                 </div>
 
-                <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} bridge={bridge} />
+                <AutomationLanes
+                    theme={theme}
+                    activePattern={activePattern}
+                    selectedTrack={selectedTrack}
+                    activeSection={activeSection}
+                    footerTab={footerTab}
+                    setFooterTab={setFooterTab}
+                    bridge={bridge}
+                />
             </div>
         </div>
     );
