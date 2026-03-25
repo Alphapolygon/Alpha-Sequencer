@@ -118,6 +118,15 @@ public:
     std::atomic<bool> isPlaying{ false };
     std::atomic<uint32_t> uiStateVersion{ 1 };
 
+    // --- SONG MODE ---
+    std::atomic<bool> isSongModeEnabled{ false };
+    std::atomic<int> songModeStepIndex{ 0 };
+    std::atomic<int> songModeChainLength{ 1 };
+    std::atomic<int> songModeChain[32]{}; // Holds up to 32 pattern indices (A-J)
+
+    void setSongModeEnabledNative(bool isEnabled);
+    void setSongModeChainNative(int length, const juce::Array<int>& newChain);
+
     void setStepDataFromVar(const juce::var& stateVar);
     void updateUiMetadataFromVar(const juce::var& stateVar);
     juce::var buildPatternDataVar(int patternIndex) const;

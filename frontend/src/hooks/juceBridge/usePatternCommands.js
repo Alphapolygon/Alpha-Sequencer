@@ -203,6 +203,41 @@ export function usePatternCommands({
             invokeNative,
         });
     }, [activeIdxRef, applyPatternDataPatch, backendReady, invokeNative, patternsRef]);
+    
+    const nudgeTrack = useCallback((trackIndex, direction) => {
+        const patternIndex = activeIdxRef.current;
+        const currentData = patternsRef.current[patternIndex]?.data;
+        if (!currentData) return;
+
+        const trackLength = currentData.trackStates[trackIndex]?.length || 16;
+        const patch = {};
+
+        const shiftArray = (arr) => {
+            const row = [...arr];
+            const activePart = row.slice(0, trackLength);
+            const tailPart = row.slice(trackLength);
+
+            if (direction === 1) { // Shift Right
+                const last = activePart.pop();
+                activePart.unshift(last);
+            } else { // Shift Left
+                const first = activePart.shift();
+                activePart.push(first);
+            }
+
+            return [...activePart, ...tailPart];
+        };
+
+        patch.activeSteps = currentData.activeSteps.map((row, idx) => idx === trackIndex ? shiftArray(row) : row);
+
+        const params = ['velocities', 'gates', 'probabilities', 'shifts', 'swings', 'repeats', 'pitches'];
+        params.forEach((param) => {
+            patch[param] = currentData[param].map((row, idx) => idx === trackIndex ? shiftArray(row) : row);
+        });
+
+        updateUiAndEngine(patch);
+    }, [activeIdxRef, patternsRef, updateUiAndEngine]);
+    
 
     return {
         applyPatternDataPatch,
@@ -228,5 +263,6 @@ export function usePatternCommands({
         resetAutomationLane,
         syncPatternToEngine,
         updateUiAndEngine,
+        nudgeTrack,
     };
 }

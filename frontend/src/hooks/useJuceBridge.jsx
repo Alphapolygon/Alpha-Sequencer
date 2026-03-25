@@ -128,6 +128,7 @@ export function useJuceBridge() {
         randomizeParameter: commands.randomizeParameter,
         setTrackRandomAmount: commands.setTrackRandomAmount,
         resetAutomationLane: commands.resetAutomationLane,
+        nudgeTrack: commands.nudgeTrack,
 
         backendReady: bridgeState.backendReady,
         uiReady: bridgeState.uiReady,

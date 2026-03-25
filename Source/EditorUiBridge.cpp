@@ -121,6 +121,19 @@ juce::WebBrowserComponent::Options makeEditorBrowserOptions(
             }
             completion(juce::var());
         })
+        .withNativeFunction("setSongModeEnabled", [&processor](const auto& args, auto completion) {
+        if (args.size() == 1)
+            processor.setSongModeEnabledNative((bool)args[0]);
+        completion(juce::var());
+            })
+        .withNativeFunction("setSongModeChain", [&processor](const auto& args, auto completion) {
+        if (args.size() == 2 && args[1].isArray()) {
+            juce::Array<int> chain;
+            for (auto& p : *args[1].getArray()) chain.add((int)p);
+            processor.setSongModeChainNative((int)args[0], chain);
+        }
+        completion(juce::var());
+            })
         .withNativeFunction("requestInitialState", [&processor](const auto&, auto completion) {
             completion(processor.buildFullUiStateVarForEditor());
         })

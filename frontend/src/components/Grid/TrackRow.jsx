@@ -43,6 +43,7 @@ export default function TrackRow({
                 isTrackPlaying={isTrackPlaying}
                 onLengthChange={(length) => bridge.setTrackLength(trackIndex, length)}
                 onClear={() => bridge.editClearTrack(bridge.activeIdx, trackIndex)}
+                onNudge={(direction) => bridge.nudgeTrack(trackIndex, direction)}
             />
 
             <div className="w-[140px] flex gap-1">

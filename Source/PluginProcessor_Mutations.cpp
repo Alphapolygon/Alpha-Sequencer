@@ -256,3 +256,20 @@ void MiniLAB3StepSequencerAudioProcessor::setCurrentPageNative(int pageIdx, bool
         pushUiDiffEvent(event);
     }
 }
+
+void MiniLAB3StepSequencerAudioProcessor::setSongModeEnabledNative(bool isEnabled)
+{
+    isSongModeEnabled.store(isEnabled, std::memory_order_release);
+    markUiStateDirty();
+}
+
+void MiniLAB3StepSequencerAudioProcessor::setSongModeChainNative(int length, const juce::Array<int>& newChain)
+{
+    songModeChainLength.store(juce::jlimit(1, 32, length), std::memory_order_release);
+
+    for (int i = 0; i < juce::jmin(32, newChain.size()); ++i)
+    {
+        songModeChain[i].store(juce::jlimit(0, MiniLAB3Seq::kNumPatterns - 1, newChain[i]), std::memory_order_release);
+    }
+    markUiStateDirty();
+}

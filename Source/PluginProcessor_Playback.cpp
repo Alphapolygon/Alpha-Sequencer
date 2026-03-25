@@ -58,7 +58,8 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 qMsg.len = msg.getRawDataSize();
                 std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
             }
-        } else {
+        }
+        else {
             midiMessages.addEvent(msg, metadata.samplePosition);
         }
     }
@@ -87,6 +88,19 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                 if (ppqStart < (lastProcessedStep * 0.03125)) {
                     lastProcessedStep = -1;
                     queuedEventCount = 0;
+
+                    // --- SONG MODE RESTART LOGIC ---
+                    songModeStepIndex.store(0, std::memory_order_release);
+                    if (isSongModeEnabled.load(std::memory_order_acquire) && songModeChainLength.load() > 0) {
+                        activePatternIndex.store(songModeChain[0].load(), std::memory_order_release);
+
+                        // Tell the UI the pattern changed!
+                        UiDiffEvent ev;
+                        ev.type = UiDiffEventType::ActivePatternChanged;
+                        ev.value = songModeChain[0].load();
+                        pushUiDiffEvent(ev);
+                    }
+
                     for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
                         midiMessages.addEvent(juce::MidiMessage::allNotesOff(t + 1), 0);
                         lastNoteOnPerTrack[t] = -1;
@@ -102,6 +116,26 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     lastProcessedStep = tick;
                     const double tickPpq = tick * 0.03125;
                     global16thNote.store(static_cast<int>(std::floor(tickPpq * 4.0)), std::memory_order_release);
+
+                    if (isSongModeEnabled.load(std::memory_order_acquire) && tick > 0 && (tick % MiniLAB3Seq::kNumSteps == 0)) {
+                        int chainLen = songModeChainLength.load(std::memory_order_acquire);
+                        if (chainLen > 0) {
+                            int nextIdx = (songModeStepIndex.load() + 1) % chainLen;
+                            songModeStepIndex.store(nextIdx, std::memory_order_release);
+
+                            int nextPattern = songModeChain[nextIdx].load();
+                            activePatternIndex.store(nextPattern, std::memory_order_release);
+
+                            // Tell the UI the pattern changed so it updates instantly!
+                            UiDiffEvent ev;
+                            ev.type = UiDiffEventType::ActivePatternChanged;
+                            ev.value = nextPattern;
+                            pushUiDiffEvent(ev);
+                        }
+                    }
+
+                    // Reload pIdx in case Song Mode just changed it
+                    const int currentPIdx = activePatternIndex.load(std::memory_order_acquire);
 
                     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track) {
                         if (anySolo ? (soloParams[track]->load() <= 0.5f) : (muteParams[track]->load() > 0.5f)) continue;
@@ -123,8 +157,23 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                         if (!stepData.isActive || playbackRandom.nextFloat() >= pJitter) continue;
 
-                        if (lastNoteOnPerTrack[track] != -1)
-                            scheduleMidiEvent(tickPpq, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], lastNoteOnPerTrack[track], 0.0f));
+                        // Tie Logic
+                        bool isTied = (gJitter >= 0.99f);
+                        int prevNoteState = lastNoteOnPerTrack[track];
+                        int prevNote = prevNoteState != -1 ? (prevNoteState & 0xFF) : -1;
+                        bool wasTied = prevNoteState != -1 ? ((prevNoteState & 0x100) != 0) : false;
+
+                        // MONOPHONIC CUTOFF
+                        if (prevNote != -1) {
+                            if (!wasTied) {
+                                // Normal cutoff exactly at step boundary
+                                scheduleMidiEvent(tickPpq, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], prevNote, 0.0f));
+                            }
+                            else {
+                                // Legato cutoff: fire slightly after the step to ensure NoteOn precedes NoteOff for glide
+                                scheduleMidiEvent(tickPpq + 0.01, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], prevNote, 0.0f));
+                            }
+                        }
 
                         const int rootNote = static_cast<int>(std::round(noteParams[track]->load()));
                         int note = MelodicEngine::getQuantizedMidiNote(rootNote, piJitter, trackScales[track].load(std::memory_order_relaxed));
@@ -144,10 +193,16 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         for (int r = 0; r < repeats; ++r) {
                             const double onPpq = basePpq + (r * (stepLengthPpq / repeats));
                             scheduleMidiEvent(onPpq, juce::MidiMessage::noteOn(channel, note, velocity));
-                            scheduleMidiEvent(onPpq + (noteDurationPpq / repeats), juce::MidiMessage::noteOff(channel, note, 0.0f));
+
+                            bool isLastRepeat = (r == repeats - 1);
+                            // ONLY schedule the NoteOff if this step is NOT tied!
+                            if (!(isTied && isLastRepeat)) {
+                                scheduleMidiEvent(onPpq + (noteDurationPpq / repeats), juce::MidiMessage::noteOff(channel, note, 0.0f));
+                            }
                         }
 
-                        lastNoteOnPerTrack[track] = note;
+                        // Store the note, and flip the 8th bit if it was tied
+                        lastNoteOnPerTrack[track] = note | (isTied ? 0x100 : 0);
                         lastChannelOnPerTrack[track] = channel;
                     }
                 }
@@ -159,18 +214,22 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     if (event.ppqTime >= ppqStart) {
                         int sampleOffset = static_cast<int>(((event.ppqTime - ppqStart) / blockLengthPpq) * numSamples);
                         midiMessages.addEvent(event.message, juce::jlimit(0, juce::jmax(0, numSamples - 1), sampleOffset));
-                    } else if (event.message.isNoteOff()) {
+                    }
+                    else if (event.message.isNoteOff()) {
                         midiMessages.addEvent(event.message, 0);
                     }
                     std::pop_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
                     --queuedEventCount;
                 }
-            } else if (lastProcessedStep != -1) {
+            }
+            else if (lastProcessedStep != -1) {
                 global16thNote.store(-1, std::memory_order_release);
                 lastProcessedStep = -1;
                 queuedEventCount = 0;
-                for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
-                    midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
+                for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
+                    midiMessages.addEvent(juce::MidiMessage::allNotesOff(t + 1), 0);
+                    lastNoteOnPerTrack[t] = -1; // Reset states on stop!
+                }
             }
         }
     }
