@@ -122,17 +122,98 @@ void ArturiaMiniLab3Profile::updateLEDs(juce::MidiOutput& output,
 }
 
 bool ArturiaMiniLab3Profile::handleMidiInput(const juce::MidiMessage& message,
-                                             MiniLAB3StepSequencerAudioProcessor& processor)
+    MiniLAB3StepSequencerAudioProcessor& processor)
 {
-    if (message.isNoteOn() && message.getNoteNumber() >= 36 && message.getNoteNumber() <= 43)
+    if (message.isController())
     {
-        const int instrument = processor.currentInstrument.load();
-        const int patternIndex = processor.activePatternIndex.load();
-        const int step = (processor.currentPage.load() * 8) + (message.getNoteNumber() - 36);
+        const int cc = message.getControllerNumber();
+        const int value = message.getControllerValue();
+
+        // 1. Mod Wheel (Track Selector)
+        if (cc == 1)
+        {
+            int newInstrument = (127 - value) / 8;
+            newInstrument = juce::jlimit(0, 15, newInstrument); // 16 Tracks
+            processor.setSelectedTrackNative(newInstrument, true);
+            return true;
+        }
+        // 2. Knobs 1-8 (Dynamic Automation Control)
+        else if (cc == 74 || cc == 71 || cc == 76 || cc == 77 || cc == 93 || cc == 18 || cc == 19 || cc == 16)
+        {
+            int knobIndex = -1;
+            if (cc == 74) knobIndex = 0; else if (cc == 71) knobIndex = 1;
+            else if (cc == 76) knobIndex = 2; else if (cc == 77) knobIndex = 3;
+            else if (cc == 93) knobIndex = 4; else if (cc == 18) knobIndex = 5;
+            else if (cc == 19) knobIndex = 6; else if (cc == 16) knobIndex = 7;
+
+            if (knobIndex >= 0)
+            {
+                const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+                const int step = (processor.currentPage.load(std::memory_order_acquire) * 8) + knobIndex;
+                const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+
+                // Check which UI tab is currently open
+                const int currentTab = processor.footerTabIndex.load(std::memory_order_acquire);
+                juce::String paramName = "velocities";
+                float mappedValue = value / 127.0f; // Default 0.0 to 1.0 range
+
+                switch (currentTab)
+                {
+                case 1: paramName = "gates"; break;
+                case 2: paramName = "probabilities"; break;
+                case 3: paramName = "shifts"; break;
+                case 4: paramName = "swings"; break;
+                case 5:
+                    paramName = "pitches";
+                    mappedValue = std::round((value / 127.0f) * 48.0f - 24.0f); // Map to -24 / +24
+                    break;
+                default: break;
+                }
+
+                // Only apply the parameter change if the step is currently active
+                if (processor.getActiveTrack(pIdx, instrument)[step].isActive) {
+                    processor.setStepParameterNative(pIdx, instrument, step, paramName, mappedValue, true);
+                }
+                return true;
+            }
+        }
+        // 3. Main Encoder Turn (Page Selection)
+        else if (cc == 114)
+        {
+            const auto page = processor.currentPage.load(std::memory_order_acquire);
+            int newPage = page;
+            if (value > 64) newPage = juce::jmin(3, page + 1);
+            else if (value < 64) newPage = juce::jmax(0, page - 1);
+
+            if (newPage != page)
+                processor.setCurrentPageNative(newPage, true);
+
+            return true;
+        }
+        // 4. Main Encoder Click (Clear Page)
+        else if (cc == 115 && value == 127)
+        {
+            const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+            const int pIdx = processor.activePatternIndex.load(std::memory_order_acquire);
+            const int page = processor.currentPage.load(std::memory_order_acquire);
+
+            processor.clearPageNative(pIdx, instrument, page, true);
+            return true;
+        }
+
+        return false;
+    }
+    else if (message.isNoteOn() && message.getNoteNumber() >= 36 && message.getNoteNumber() <= 43)
+    {
+        // 5. Pads 1-8 (Step Toggles)
+        const int instrument = processor.currentInstrument.load(std::memory_order_acquire);
+        const int patternIndex = processor.activePatternIndex.load(std::memory_order_acquire);
+        const int step = (processor.currentPage.load(std::memory_order_acquire) * 8) + (message.getNoteNumber() - 36);
 
         const bool currentState = processor.getActiveTrack(patternIndex, instrument)[step].isActive;
         processor.setStepActiveNative(patternIndex, instrument, step, !currentState, true);
 
+        // If the pad just turned the step ON, record the velocity of the pad hit
         if (!currentState)
             processor.setStepParameterNative(patternIndex, instrument, step, "velocities", message.getFloatVelocity(), true);
 
