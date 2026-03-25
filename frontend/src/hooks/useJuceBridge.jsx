@@ -18,11 +18,14 @@ const REQUIRED_NATIVE_FUNCTIONS = [
     'setCurrentPage',
     'setWindowScale',
     'setTrackLength',
-    'setTrackTimeDivision',
     'randomizeTrack',
     'randomizeParameter',
     'setTrackScale',
-    'setTrackSequence'
+    'setTrackSequence',
+    'setTrackRandomAmount', 
+    'resetAutomationLane',
+    'setTrackTimeDivision', 
+    'setVisibleTracks'      
 ];
 
 const SAVE_UI_DELAY_MS = 300;
@@ -39,6 +42,7 @@ export function useJuceBridge() {
     const [footerTab, setFooterTab] = useState('Velocity');
     const [themeIdx, setThemeIdx] = useState(0);
     const [uiScale, setUiScale] = useState(1.0);
+    const [visibleTracks, setVisibleTracks] = useState(16);
 
     const [backendReady, setBackendReady] = useState(false);
     const [uiReady, setUiReady] = useState(false);
@@ -102,7 +106,7 @@ export function useJuceBridge() {
             nextMatrix[tIdx][sIdx] = value;
             return { ...data, [paramName]: nextMatrix };
         });
-        const nativeValue = paramName === 'repeats' ? value : value / 100.0;
+        const nativeValue = (paramName === 'repeats' || paramName === 'pitches') ? value : value / 100.0;
         if (backendReady) invokeNativeWithTimeout('setStepParameter', [pIdx, tIdx, sIdx, paramName, nativeValue]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
@@ -159,6 +163,7 @@ export function useJuceBridge() {
         if (backendReady) invokeNativeWithTimeout('setWindowScale', [scale]).catch(console.error);
     }, [backendReady, invokeNativeWithTimeout]);
 
+    // Polymeter Link
     const setTrackLength = useCallback((tIdx, len) => {
         applyPatternDataPatch(activeIdxRef.current, (data) => {
             const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, length: len } : state);
@@ -167,14 +172,7 @@ export function useJuceBridge() {
         if (backendReady) invokeNativeWithTimeout('setTrackLength', [tIdx, len]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
-    const setTrackTimeDivision = useCallback((tIdx, divIdx) => {
-        applyPatternDataPatch(activeIdxRef.current, (data) => {
-            const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, timeDivision: divIdx } : state);
-            return { ...data, trackStates: nextTrackStates };
-        });
-        if (backendReady) invokeNativeWithTimeout('setTrackTimeDivision', [tIdx, divIdx]).catch(console.error);
-    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
-
+    // Sequence Melodic Links
     const setTrackSequence = useCallback((tIdx, seq) => {
         applyPatternDataPatch(activeIdxRef.current, (data) => {
             const nextTrackStates = data.trackStates.map((state, index) => index === tIdx ? { ...state, sequence: seq } : state);
@@ -191,6 +189,23 @@ export function useJuceBridge() {
         if (backendReady) invokeNativeWithTimeout('setTrackScale', [tIdx, scale]).catch(console.error);
     }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
+     const changeVisibleTracks = useCallback((num) => {
+        setVisibleTracks(num);
+        if (backendReady) invokeNativeWithTimeout('setVisibleTracks', [num]).catch(console.error);
+    }, [backendReady, invokeNativeWithTimeout]);
+
+   
+    const setTrackTimeDivision = useCallback((tIdx, divIdx) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextTrackStates = data.trackStates.map((state, index) => 
+                index === tIdx ? { ...state, timeDivision: divIdx } : state
+            );
+            return { ...data, trackStates: nextTrackStates };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackTimeDivision', [tIdx, divIdx]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    // Randomization Links (Forces state sync to UI instantly)
     const randomizeTrack = useCallback(async (tIdx) => {
         if (!backendReady) return;
         await invokeNativeWithTimeout('randomizeTrack', [tIdx]);
@@ -206,6 +221,36 @@ export function useJuceBridge() {
         const parsedState = typeof savedState === 'string' ? JSON.parse(savedState) : savedState;
         setPatterns(normalizeLoadedState(parsedState).patterns);
     }, [backendReady, invokeNativeWithTimeout]);
+
+    const setTrackRandomAmount = useCallback((tIdx, paramIdx, amount) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextRandomAmounts = data.randomAmounts.map((arr, index) => index === tIdx ? [...arr] : arr);
+            nextRandomAmounts[tIdx][paramIdx] = amount;
+            return { ...data, randomAmounts: nextRandomAmounts };
+        });
+        if (backendReady) invokeNativeWithTimeout('setTrackRandomAmount', [tIdx, paramIdx, amount]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
+
+    const resetAutomationLane = useCallback((tIdx, paramName) => {
+        applyPatternDataPatch(activeIdxRef.current, (data) => {
+            const nextMatrix = data[paramName].map((row, rowIdx) => rowIdx === tIdx ? [...row] : row);
+            for (let s = 0; s < 32; s++) {
+                if (paramName === 'velocities') nextMatrix[tIdx][s] = 100;
+                else if (paramName === 'gates') nextMatrix[tIdx][s] = 75;
+                else if (paramName === 'probabilities') nextMatrix[tIdx][s] = 100;
+                else if (paramName === 'shifts') nextMatrix[tIdx][s] = 50;
+                else if (paramName === 'swings') nextMatrix[tIdx][s] = 0;
+                else if (paramName === 'pitches') nextMatrix[tIdx][s] = 0;
+            }
+            
+            const paramIdx = paramName === 'gates' ? 1 : paramName === 'probabilities' ? 2 : paramName === 'shifts' ? 3 : paramName === 'swings' ? 4 : paramName === 'pitches' ? 5 : 0;
+            const nextRandomAmounts = data.randomAmounts.map((arr, index) => index === tIdx ? [...arr] : arr);
+            nextRandomAmounts[tIdx][paramIdx] = 0;
+
+            return { ...data, [paramName]: nextMatrix, randomAmounts: nextRandomAmounts };
+        });
+        if (backendReady) invokeNativeWithTimeout('resetAutomationLane', [tIdx, paramName]).catch(console.error);
+    }, [applyPatternDataPatch, backendReady, invokeNativeWithTimeout]);
 
     const syncPatternToEngine = useCallback((_patternData, metadataPatch = {}) => {
         if (Object.prototype.hasOwnProperty.call(metadataPatch, 'activeIdx')) changeActivePattern(metadataPatch.activeIdx);
@@ -235,12 +280,12 @@ export function useJuceBridge() {
             }
         }
 
-        for (const paramName of ['velocities', 'gates', 'probabilities', 'shifts', 'swings', 'repeats']) {
+        for (const paramName of ['velocities', 'gates', 'probabilities', 'shifts', 'swings', 'repeats', 'pitches']) {
             if (!patch[paramName]) continue;
             for (let t = 0; t < patch[paramName].length; t++) {
                 for (let s = 0; s < patch[paramName][t].length; s++) {
                     if (patch[paramName][t][s] !== currentData[paramName][t][s]) {
-                        const nativeValue = paramName === 'repeats' ? patch[paramName][t][s] : patch[paramName][t][s] / 100.0;
+                       const nativeValue = (paramName === 'repeats' || paramName === 'pitches') ? patch[paramName][t][s] : patch[paramName][t][s] / 100.0;
                         invokeNativeWithTimeout('setStepParameter', [patternIndex, t, s, paramName, nativeValue]).catch(console.error);
                     }
                 }
@@ -352,14 +397,6 @@ export function useJuceBridge() {
                     });
                 }
                 return;
-            case 'trackSequenceChanged':
-                if (Number.isInteger(diff.trackIndex) && typeof diff.sequence === 'string') {
-                    applyPatternDataPatch(activeIdxRef.current, (data) => {
-                        const nextTrackStates = data.trackStates.map((state, index) => index === diff.trackIndex ? { ...state, sequence: diff.sequence } : state);
-                        return { ...data, trackStates: nextTrackStates };
-                    });
-                }
-                return;
             default:
                 return;
         }
@@ -458,6 +495,7 @@ export function useJuceBridge() {
             setActiveSection(normalized.activeSection ?? -1);
             setFooterTab(normalized.footerTab);
             setUiScale(normalized.uiScale ?? 1.0);
+            setVisibleTracks(normalized.visibleTracks ?? 16);
 
             await new Promise(resolve => window.requestAnimationFrame(() => resolve()));
             if (cancelled) return;
@@ -493,6 +531,7 @@ export function useJuceBridge() {
                 activeSection,
                 footerTab,
                 uiScale,
+                visibleTracks,
             })]).catch(console.error);
         }, SAVE_UI_DELAY_MS);
 
@@ -501,7 +540,7 @@ export function useJuceBridge() {
 
     return {
         patterns, activeIdx, isPlaying, bpm, currentStep, activeSection,
-        currentPage, selectedTrack, footerTab, themeIdx, uiScale,
+        currentPage, selectedTrack, footerTab, themeIdx, uiScale, visibleTracks,
 
         setActiveIdx: changeActivePattern,
         setActiveSection,
@@ -509,13 +548,16 @@ export function useJuceBridge() {
         setSelectedTrack: changeSelectedTrack,
         setFooterTab, setThemeIdx, updateUiScale,
         changeActivePattern, changeSelectedTrack, changeCurrentPage,
+        changeVisibleTracks,
 
         updateUiAndEngine, syncPatternToEngine,
         editStepActive, editStepParameter, editTrackState, editTrackMidiKey,
         editTrackMidiChannel, editClearTrack,
         
-        setTrackLength, setTrackTimeDivision, setTrackSequence, setTrackScale,
+        setTrackLength, setTrackSequence, setTrackScale,
+        setTrackTimeDivision,
         randomizeTrack, randomizeParameter,
+        setTrackRandomAmount, resetAutomationLane,
 
         backendReady, uiReady, backendStatus, debugInfo, hasHydrated,
     };

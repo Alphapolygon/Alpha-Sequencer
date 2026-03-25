@@ -2,66 +2,44 @@ import React, { useEffect, useState } from 'react';
 import { THEMES } from './utils/constants';
 import { useJuceBridge } from './hooks/useJuceBridge';
 import Header from './components/Header';
-import Sidebar from './components/Sidebar';
-import StepGrid from './components/StepGrid';
-import AutomationLanes from './components/AutomationLanes';
+import Sidebar from './components/Sidebar/Sidebar';
+import StepGrid from './components/Grid/StepGrid';
+import AutomationLanes from './components/Automation/AutomationLanes';
 
 export default function App() {
     const bridge = useJuceBridge();
 
     const {
         patterns, activeIdx, isPlaying, bpm, activeSection,
-        currentPage, selectedTrack, footerTab, themeIdx, uiScale,
-        setActiveIdx, setActiveSection, setCurrentPage, setSelectedTrack,
-        setFooterTab, setThemeIdx, updateUiScale, 
+        selectedTrack, footerTab, themeIdx, visibleTracks,
+        setActiveSection, setCurrentPage, setSelectedTrack, setFooterTab,
         backendReady, uiReady, backendStatus, debugInfo
     } = bridge;
 
     const t = THEMES[themeIdx] || THEMES[0];
-    
-    // FIX: Independent X and Y scales guarantee the UI perfectly fills the window
     const [scale, setScale] = useState({ x: 1, y: 1 });
 
     useEffect(() => {
         const handleResize = () => {
-            const clientW = document.documentElement.clientWidth || window.innerWidth;
-            const clientH = document.documentElement.clientHeight || window.innerHeight;
-            setScale({
-                x: clientW / 1460,
-                y: clientH / 1024
-            });
+            setScale({ x: window.innerWidth / 1460, y: window.innerHeight / 1024 });
         };
-        
         window.addEventListener('resize', handleResize);
-        
-        // Edge WebView2 specifically benefits from visualViewport updates
-        if (window.visualViewport) {
-            window.visualViewport.addEventListener('resize', handleResize);
-        }
-        
-        handleResize();
-        // Fire again slightly after load to ensure JUCE borders have settled
-        setTimeout(handleResize, 10); 
-        
+        if (window.visualViewport) window.visualViewport.addEventListener('resize', handleResize);
+        handleResize(); setTimeout(handleResize, 10); 
         return () => {
             window.removeEventListener('resize', handleResize);
-            if (window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', handleResize);
-            }
+            if (window.visualViewport) window.visualViewport.removeEventListener('resize', handleResize);
         };
     }, []);
 
-    useEffect(() => {
-        document.body.style.backgroundColor = t.bg;
-    }, [t.bg]);
+    useEffect(() => { document.body.style.backgroundColor = t.bg; }, [t.bg]);
 
     if (!backendReady || !uiReady) {
         return (
             <div style={{ backgroundColor: '#06080b', color: '#fb923c', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'monospace' }}>
-                <h2>Alpha Sequencer Boot Sequence</h2>
-                <div style={{ padding: '20px', border: '1px solid rgba(255,255,255,0.1)', marginTop: '20px', borderRadius: '8px', backgroundColor: '#12151c', maxWidth: '600px', wordWrap: 'break-word', textAlign: 'center' }}>
-                    <p style={{ fontWeight: 'bold' }}>Status: {backendStatus}</p>
-                    <p style={{ marginTop: '10px', color: '#94a3b8' }}>{debugInfo}</p>
+                <h2>Alpha Sequencer Booting...</h2>
+                <div style={{ padding: '20px', border: '1px solid rgba(255,255,255,0.1)', marginTop: '20px', borderRadius: '8px', backgroundColor: '#12151c' }}>
+                    <p>Status: {backendStatus}</p><p style={{ color: '#94a3b8' }}>{debugInfo}</p>
                 </div>
             </div>
         );
@@ -70,23 +48,16 @@ export default function App() {
     const activeP = patterns[activeIdx];
 
     return (
-        // FIX: The wrapper is fully locked, and the inner canvas scales from Top-Left to eliminate letterboxing.
         <div style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', backgroundColor: t.bg }}>
             <div className="flex flex-col font-sans select-none overflow-hidden theme-transition"
-                 style={{ 
-                     backgroundColor: t.bg, color: t.text, '--theme-accent': t.accent, 
-                     width: '1460px', height: '1024px', 
-                     transform: `scale(${scale.x}, ${scale.y})`, 
-                     transformOrigin: 'top left',
-                     position: 'absolute', top: 0, left: 0
-                 }}
+                 style={{ backgroundColor: t.bg, color: t.text, '--theme-accent': t.accent, width: '1460px', height: '1024px', transform: `scale(${scale.x}, ${scale.y})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}
                  onContextMenu={(e) => e.preventDefault()}>
 
                 <Header t={t} bpm={bpm} isPlaying={isPlaying} activeSection={activeSection} setActiveSection={setActiveSection} setCurrentPage={setCurrentPage} bridge={bridge} />
 
                 <div className="flex-1 flex overflow-hidden">
-                    <StepGrid t={t} activeP={activeP} selectedTrack={selectedTrack} setSelectedTrack={setSelectedTrack} activeSection={activeSection} bpm={bpm} bridge={bridge} />
-                    <Sidebar t={t} activeIdx={activeIdx} setActiveIdx={setActiveIdx} themeIdx={themeIdx} setThemeIdx={setThemeIdx} uiScale={uiScale} setUiScale={updateUiScale} activeP={activeP} bpm={bpm} patterns={patterns} bridge={bridge} />
+                    <StepGrid t={t} activeP={activeP} visibleTracks={visibleTracks} selectedTrack={selectedTrack} activeSection={activeSection} bridge={bridge} />
+                    <Sidebar t={t} bridge={bridge} activeP={activeP} />
                 </div>
 
                 <AutomationLanes t={t} activeP={activeP} selectedTrack={selectedTrack} activeSection={activeSection} footerTab={footerTab} setFooterTab={setFooterTab} bridge={bridge} />

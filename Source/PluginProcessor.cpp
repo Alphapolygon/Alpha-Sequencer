@@ -2,108 +2,65 @@
 #include "PluginEditor.h"
 #include <cstring>
 
-namespace
-{
-    UiDiffParam toUiDiffParam(const juce::String& param)
-    {
+namespace {
+    UiDiffParam toUiDiffParam(const juce::String& param) {
         if (param == "gates") return UiDiffParam::Gate;
         if (param == "probabilities") return UiDiffParam::Probability;
         if (param == "shifts") return UiDiffParam::Shift;
         if (param == "swings") return UiDiffParam::Swing;
         if (param == "repeats") return UiDiffParam::Repeats;
+        if (param == "pitches") return UiDiffParam::Pitch;
         return UiDiffParam::Velocity;
     }
+    
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout MiniLAB3StepSequencerAudioProcessor::createParameterLayout()
-{
+juce::AudioProcessorValueTreeState::ParameterLayout MiniLAB3StepSequencerAudioProcessor::createParameterLayout() {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     layout.add(std::make_unique<juce::AudioParameterFloat>("master_vol", "Master Volume", 0.0f, 1.0f, 0.8f));
     layout.add(std::make_unique<juce::AudioParameterFloat>("swing", "Swing", 0.0f, 1.0f, 0.0f));
-
-    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i)
-    {
+    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i) {
         const auto trackLabel = juce::String(i + 1);
         layout.add(std::make_unique<juce::AudioParameterBool>("mute_" + trackLabel, "Mute " + trackLabel, false));
         layout.add(std::make_unique<juce::AudioParameterBool>("solo_" + trackLabel, "Solo " + trackLabel, false));
         layout.add(std::make_unique<juce::AudioParameterInt>("note_" + trackLabel, "MIDI Note " + trackLabel, 0, 127, 36 + i));
-        layout.add(std::make_unique<juce::AudioParameterFloat>(
-            "nudge_" + trackLabel,
-            "Micro-Timing " + trackLabel,
-            juce::NormalisableRange<float>(minMicroTimingMs, maxMicroTimingMs, 0.1f),
-            0.0f));
+        layout.add(std::make_unique<juce::AudioParameterFloat>("nudge_" + trackLabel, "Micro-Timing", juce::NormalisableRange<float>(minMicroTimingMs, maxMicroTimingMs, 0.1f), 0.0f));
     }
-
     return layout;
 }
 
 MiniLAB3StepSequencerAudioProcessor::MiniLAB3StepSequencerAudioProcessor()
-    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-    apvts(*this, nullptr, "PARAMETERS", createParameterLayout()),
-    playbackRandom(0x31337)
+    : AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true)), apvts(*this, nullptr, "PARAMETERS", createParameterLayout()), playbackRandom(0x31337)
 {
-    masterVolParam = apvts.getRawParameterValue("master_vol");
-    swingParam = apvts.getRawParameterValue("swing");
+    masterVolParam = apvts.getRawParameterValue("master_vol"); swingParam = apvts.getRawParameterValue("swing");
+    for (int i = 0; i < MiniLAB3Seq::kNumPatterns; ++i) patternUUIDs[i] = juce::Uuid().toString();
 
-    for (int i = 0; i < MiniLAB3Seq::kNumPatterns; ++i)
-        patternUUIDs[i] = juce::Uuid().toString();
-
-    modifySequencerState([this](MatrixSnapshot& writeMatrix)
-        {
-            for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p)
-            {
-                for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t)
-                {
-                    if (p == 0)
-                    {
-                        instrumentNames[t] = juce::String(t + 1);
-                        trackMidiChannels[t].store(1, std::memory_order_relaxed);
-                        muteParams[t] = apvts.getRawParameterValue("mute_" + juce::String(t + 1));
-                        soloParams[t] = apvts.getRawParameterValue("solo_" + juce::String(t + 1));
-                        noteParams[t] = apvts.getRawParameterValue("note_" + juce::String(t + 1));
-                        nudgeParams[t] = apvts.getRawParameterValue("nudge_" + juce::String(t + 1));
-
-                        trackScales[t].store(0, std::memory_order_relaxed);
-                        trackSequenceLengths[t].store(1, std::memory_order_relaxed);
-                        trackPitchSequences[t][0].store(1, std::memory_order_relaxed);
-                        currentSequenceIndex[t].store(0, std::memory_order_release);
-                    }
-
-                    for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s)
-                    {
-                        writeMatrix[p][t][s] = { false, 0.8f, 1.0f, 0.75f, 1, 0.5f, 0.0f };
-                        if (p == 0)
-                            lastFiredVelocity[t][s] = 0.0f;
-                    }
+    modifySequencerState([this](MatrixSnapshot& writeMatrix) {
+        for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p) {
+            for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
+                if (p == 0) {
+                    instrumentNames[t] = juce::String(t + 1); trackMidiChannels[t].store(1, std::memory_order_relaxed);
+                    muteParams[t] = apvts.getRawParameterValue("mute_" + juce::String(t + 1));
+                    soloParams[t] = apvts.getRawParameterValue("solo_" + juce::String(t + 1));
+                    noteParams[t] = apvts.getRawParameterValue("note_" + juce::String(t + 1));
+                    nudgeParams[t] = apvts.getRawParameterValue("nudge_" + juce::String(t + 1));
+                    trackScales[t].store(0, std::memory_order_relaxed);
                 }
-            }
-        });
-
-    for (int p = 0; p < MiniLAB3Seq::kNumPatterns; ++p) {
-        for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
-            trackLengths[p][t].store(16, std::memory_order_release);
-            trackTimeDivisions[p][t].store(3, std::memory_order_release);
-            if (p == 0) {
-                lastNoteOnPerTrack[t] = -1;
-                lastChannelOnPerTrack[t] = -1;
+                for (int i = 0; i < 6; i++) trackRandomAmounts[p][t][i].store(0.0f, std::memory_order_relaxed);
+                trackLengths[p][t].store(16, std::memory_order_relaxed);
+                trackTimeDivisions[p][t].store(3, std::memory_order_relaxed);
+                for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) writeMatrix[p][t][s] = { false, 0.8f, 1.0f, 0.75f, 1, 0.5f, 0.0f, 0 };
             }
         }
-    }
+        });
 
-    markUiStateDirty();
-    requestLedRefresh();
-    startTimerHz(60);
-
-    initialising.store(false, std::memory_order_release);
+    for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) { lastNoteOnPerTrack[t] = -1; lastChannelOnPerTrack[t] = -1; }
+    markUiStateDirty(); requestLedRefresh(); startTimerHz(60); initialising.store(false, std::memory_order_release);
 }
 
-MiniLAB3StepSequencerAudioProcessor::~MiniLAB3StepSequencerAudioProcessor()
-{
+MiniLAB3StepSequencerAudioProcessor::~MiniLAB3StepSequencerAudioProcessor() {
     stopTimer();
-    if (isHardwareOwner()) {
-        resetHardwareState();
-        hardwareManager->owner.store(nullptr, std::memory_order_release);
-    }
+    if (isHardwareOwner()) { resetHardwareState(); hardwareManager->owner.store(nullptr, std::memory_order_release); }
 }
 
 void MiniLAB3StepSequencerAudioProcessor::modifyTrackState(int patternIndex, int trackIndex, const std::function<void(TrackSnapshot&)>& modifier)
@@ -283,33 +240,47 @@ void MiniLAB3StepSequencerAudioProcessor::setStepActiveNative(int pIdx, int tIdx
     }
 }
 
-void MiniLAB3StepSequencerAudioProcessor::setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value, bool emitUiDiff)
-{
-    modifyTrackState(pIdx, tIdx, [=](TrackSnapshot& trackWrite)
-        {
-            auto& step = trackWrite[sIdx];
-            if (paramName == "velocities")      step.velocity = value;
-            else if (paramName == "gates")      step.gate = value;
-            else if (paramName == "probabilities") step.probability = value;
-            else if (paramName == "shifts")     step.shift = value;
-            else if (paramName == "swings")     step.swing = value;
-            else if (paramName == "repeats")    step.repeats = juce::jmax(1, static_cast<int>(std::round(value)));
+void MiniLAB3StepSequencerAudioProcessor::setTrackRandomAmountNative(int pIdx, int tIdx, int paramIdx, float amount) {
+    trackRandomAmounts[pIdx][tIdx][paramIdx].store(juce::jlimit(0.0f, 1.0f, amount), std::memory_order_release);
+    markUiStateDirty();
+}
+
+void MiniLAB3StepSequencerAudioProcessor::resetAutomationLaneNative(int pIdx, int tIdx, const juce::String& paramName) {
+    modifyTrackState(pIdx, tIdx, [&](TrackSnapshot& trackWrite) {
+        for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s) {
+            if (paramName == "velocities") trackWrite[s].velocity = 1.0f;
+            else if (paramName == "gates") trackWrite[s].gate = 0.75f;
+            else if (paramName == "probabilities") trackWrite[s].probability = 1.0f;
+            else if (paramName == "shifts") trackWrite[s].shift = 0.5f;
+            else if (paramName == "swings") trackWrite[s].swing = 0.0f;
+            else if (paramName == "pitches") trackWrite[s].pitch = 0;
+        }
         });
 
-    requestLedRefresh();
-    markUiStateDirty();
+    int paramIdx = 0;
+    if (paramName == "gates") paramIdx = 1; else if (paramName == "probabilities") paramIdx = 2;
+    else if (paramName == "shifts") paramIdx = 3; else if (paramName == "swings") paramIdx = 4;
+    else if (paramName == "pitches") paramIdx = 5;
 
-    if (emitUiDiff)
-    {
-        UiDiffEvent ev;
-        ev.type = UiDiffEventType::StepParameter;
-        ev.patternIndex = pIdx;
-        ev.trackIndex = tIdx;
-        ev.stepIndex = sIdx;
-        ev.field = static_cast<uint8_t>(toUiDiffParam(paramName));
-        ev.floatValue = value;
-        ev.value = juce::jmax(1, static_cast<int>(std::round(value)));
-        pushUiDiffEvent(ev);
+    trackRandomAmounts[pIdx][tIdx][paramIdx].store(0.0f, std::memory_order_release);
+    markUiStateDirty();
+}
+
+void MiniLAB3StepSequencerAudioProcessor::setStepParameterNative(int pIdx, int tIdx, int sIdx, const juce::String& paramName, float value, bool emitUiDiff) {
+    modifyTrackState(pIdx, tIdx, [=](TrackSnapshot& trackWrite) {
+        auto& step = trackWrite[sIdx];
+        if (paramName == "velocities") step.velocity = value;
+        else if (paramName == "gates") step.gate = value;
+        else if (paramName == "probabilities") step.probability = value;
+        else if (paramName == "shifts") step.shift = value;
+        else if (paramName == "swings") step.swing = value;
+        else if (paramName == "pitches") step.pitch = static_cast<int>(std::round(value));
+        else if (paramName == "repeats") step.repeats = juce::jmax(1, static_cast<int>(std::round(value)));
+        });
+    requestLedRefresh(); markUiStateDirty();
+    if (emitUiDiff) {
+        UiDiffEvent ev; ev.type = UiDiffEventType::StepParameter; ev.patternIndex = pIdx; ev.trackIndex = tIdx; ev.stepIndex = sIdx;
+        ev.field = static_cast<uint8_t>(toUiDiffParam(paramName)); ev.floatValue = value; ev.value = static_cast<int>(std::round(value)); pushUiDiffEvent(ev);
     }
 }
 
@@ -448,7 +419,6 @@ void MiniLAB3StepSequencerAudioProcessor::setCurrentPageNative(int pageIdx, bool
     activeSection.store(safeIndex, std::memory_order_release);
     requestLedRefresh();
     markUiStateDirty();
-
     if (emitUiDiff)
     {
         UiDiffEvent ev;
@@ -459,10 +429,7 @@ void MiniLAB3StepSequencerAudioProcessor::setCurrentPageNative(int pageIdx, bool
     }
 }
 
-int MiniLAB3StepSequencerAudioProcessor::getGeneralMidiNote(int trackIndex)
-{
-    return 36 + trackIndex;
-}
+
 
 void MiniLAB3StepSequencerAudioProcessor::setParameterFromPlainValue(const juce::String& parameterId, float plainValue)
 {
@@ -495,129 +462,8 @@ void MiniLAB3StepSequencerAudioProcessor::applyPendingParameterUpdates()
     }
 }
 
-void MiniLAB3StepSequencerAudioProcessor::markUiStateDirty() noexcept
-{
-    uiStateVersion.fetch_add(1, std::memory_order_relaxed);
-}
-
-void MiniLAB3StepSequencerAudioProcessor::randomizeTrackNative(int pIdx, int tIdx)
-{
-    modifyTrackState(pIdx, tIdx, [&](TrackSnapshot& trackWrite)
-        {
-            juce::Random r;
-            for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s)
-            {
-                trackWrite[s].isActive = r.nextBool();
-                trackWrite[s].velocity = 0.5f + (r.nextFloat() * 0.5f);
-                trackWrite[s].probability = 0.6f + (r.nextFloat() * 0.4f);
-                trackWrite[s].gate = 0.1f + (r.nextFloat() * 0.8f);
-            }
-        });
-
-    requestLedRefresh();
-    markUiStateDirty();
-}
-
-void MiniLAB3StepSequencerAudioProcessor::randomizeParameterNative(int pIdx, int tIdx, const juce::String& paramName)
-{
-    modifyTrackState(pIdx, tIdx, [&](TrackSnapshot& trackWrite)
-        {
-            juce::Random r;
-            for (int s = 0; s < MiniLAB3Seq::kNumSteps; ++s)
-            {
-                auto& step = trackWrite[s];
-                if (paramName == "velocities")      step.velocity = r.nextFloat();
-                else if (paramName == "gates")      step.gate = r.nextFloat();
-                else if (paramName == "probabilities") step.probability = r.nextFloat();
-                else if (paramName == "shifts")     step.shift = r.nextFloat();
-                else if (paramName == "swings")     step.swing = r.nextFloat();
-                else if (paramName == "repeats")    step.repeats = r.nextInt(juce::Range<int>(1, 5));
-            }
-        });
-
-    markUiStateDirty();
-}
-
-void MiniLAB3StepSequencerAudioProcessor::setTrackScaleNative(int tIdx, int scaleType, bool emitUiDiff)
-{
-    trackScales[tIdx].store(juce::jlimit(0, 6, scaleType), std::memory_order_release);
-    markUiStateDirty();
-}
-
-void MiniLAB3StepSequencerAudioProcessor::setTrackSequenceNative(int tIdx, const juce::String& seqString, bool emitUiDiff)
-{
-    juce::StringArray tokens;
-    tokens.addTokens(seqString, " ,", "\"");
-
-    int len = 0;
-    for (int i = 0; i < juce::jmin(tokens.size(), MiniLAB3Seq::kMaxSequenceLength); ++i)
-    {
-        if (tokens[i].isNotEmpty()) {
-            trackPitchSequences[tIdx][len].store(tokens[i].getIntValue(), std::memory_order_release);
-            len++;
-        }
-    }
-
-    if (len == 0) {
-        trackPitchSequences[tIdx][0].store(1, std::memory_order_release);
-        len = 1;
-    }
-
-    trackSequenceLengths[tIdx].store(len, std::memory_order_release);
-    currentSequenceIndex[tIdx].store(0, std::memory_order_release);
-    markUiStateDirty();
-}
-
-void MiniLAB3StepSequencerAudioProcessor::appendNoteToTrackSequenceNative(int tIdx, int midiNote)
-{
-    const int rootNote = static_cast<int>(std::round(noteParams[tIdx]->load()));
-    const int scaleType = trackScales[tIdx].load(std::memory_order_relaxed);
-
-    int diff = midiNote - rootNote;
-    int scaleLen = MiniLAB3Seq::kScaleLengths[scaleType];
-
-    int octaveShift = (diff >= 0) ? (diff / 12) : ((diff - 11) / 12);
-    int semitoneMod = (diff % 12);
-    if (semitoneMod < 0) semitoneMod += 12;
-
-    int closestIndex = 0;
-    int minDistance = 12;
-    for (int i = 0; i < scaleLen; ++i) {
-        int dist = std::abs(MiniLAB3Seq::kScaleOffsets[scaleType][i] - semitoneMod);
-        if (dist < minDistance) {
-            minDistance = dist;
-            closestIndex = i;
-        }
-    }
-
-    int degree = closestIndex + 1 + (octaveShift * scaleLen);
-    int currentLen = trackSequenceLengths[tIdx].load(std::memory_order_acquire);
-
-    if (currentLen == 1 && trackPitchSequences[tIdx][0].load(std::memory_order_acquire) == 1) {
-        currentLen = 0;
-    }
-
-    if (currentLen < MiniLAB3Seq::kMaxSequenceLength) {
-        trackPitchSequences[tIdx][currentLen].store(degree, std::memory_order_release);
-        currentLen++;
-        trackSequenceLengths[tIdx].store(currentLen, std::memory_order_release);
-    }
-
-    juce::String seqStr;
-    for (int i = 0; i < currentLen; ++i)
-        seqStr += juce::String(trackPitchSequences[tIdx][i].load(std::memory_order_acquire)) + " ";
-
-    seqStr = seqStr.trim();
-    UiDiffEvent ev;
-    ev.type = UiDiffEventType::TrackSequenceChanged;
-    ev.trackIndex = tIdx;
-    size_t bytesToCopy = juce::jmin((size_t)63, (size_t)seqStr.getNumBytesAsUTF8());
-    std::memcpy(ev.text, seqStr.toRawUTF8(), bytesToCopy);
-    ev.text[bytesToCopy] = '\0';
-    pushUiDiffEvent(ev);
-    markUiStateDirty();
-}
-
+void MiniLAB3StepSequencerAudioProcessor::markUiStateDirty() noexcept { uiStateVersion.fetch_add(1, std::memory_order_relaxed); }
+void MiniLAB3StepSequencerAudioProcessor::setTrackScaleNative(int tIdx, int scaleType) { trackScales[tIdx].store(juce::jlimit(0, 7, scaleType), std::memory_order_release); markUiStateDirty(); }
 void MiniLAB3StepSequencerAudioProcessor::releaseResources() {}
 bool MiniLAB3StepSequencerAudioProcessor::isBusesLayoutSupported(const juce::AudioProcessor::BusesLayout& layouts) const { return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo(); }
 juce::AudioProcessorEditor* MiniLAB3StepSequencerAudioProcessor::createEditor() { return new MiniLAB3StepSequencerAudioProcessorEditor(*this); }

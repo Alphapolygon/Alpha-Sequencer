@@ -6,6 +6,7 @@
               pluginVST3Category="External,Instrument">
   <MAINGROUP id="txOVfN" name="ALPHA Sequencer">
     <GROUP id="{FC383C5E-2580-0373-9652-C68EC60B6B75}" name="Source">
+      <FILE id="ZL9wH6" name="MelodicEngine.h" compile="0" resource="0" file="Source/MelodicEngine.h"/>
       <FILE id="Afz84k" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="c9V1r3" name="PluginProcessor.h" compile="0" resource="0"

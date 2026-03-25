@@ -65,14 +65,10 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
             })
         .withNativeFunction("setTrackScale", [this](const auto& args, auto completion)
             {
-                if (args.size() == 2) audioProcessor.setTrackScaleNative((int)args[0], (int)args[1], false);
+                if (args.size() == 2) audioProcessor.setTrackScaleNative((int)args[0], (int)args[1]);
                 completion(juce::var());
             })
-        .withNativeFunction("setTrackSequence", [this](const auto& args, auto completion)
-            {
-                if (args.size() == 2) audioProcessor.setTrackSequenceNative((int)args[0], args[1].toString(), false);
-                completion(juce::var());
-            })
+
         .withNativeFunction("setTrackLength", [this](const auto& args, auto completion)
             {
                 if (args.size() == 2) audioProcessor.setTrackLengthNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1], false);
@@ -83,16 +79,16 @@ MiniLAB3StepSequencerAudioProcessorEditor::MiniLAB3StepSequencerAudioProcessorEd
                 if (args.size() == 2) audioProcessor.setTrackTimeDivisionNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1]);
                 completion(juce::var());
             })
-        .withNativeFunction("randomizeTrack", [this](const auto& args, auto completion)
-            {
-                if (args.size() == 1) audioProcessor.randomizeTrackNative(audioProcessor.activePatternIndex.load(), (int)args[0]);
-                completion(juce::var());
+        .withNativeFunction("setTrackRandomAmount", [this](const auto& args, auto c) {
+            if (args.size() == 3) audioProcessor.setTrackRandomAmountNative(audioProcessor.activePatternIndex.load(), (int)args[0], (int)args[1], (float)(double)args[2]); c(juce::var());
             })
-        .withNativeFunction("randomizeParameter", [this](const auto& args, auto completion)
-            {
-                if (args.size() == 2) audioProcessor.randomizeParameterNative(audioProcessor.activePatternIndex.load(), (int)args[0], args[1].toString());
-                completion(juce::var());
+        .withNativeFunction("resetAutomationLane", [this](const auto& args, auto c) {
+            if (args.size() == 2) audioProcessor.resetAutomationLaneNative(audioProcessor.activePatternIndex.load(), (int)args[0], args[1].toString()); c(juce::var());
             })
+        .withNativeFunction("setVisibleTracks", [this](const auto& args, auto c) {
+            if (args.size() == 1) { audioProcessor.visibleTracks.store(juce::jlimit(1, 16, (int)args[0])); audioProcessor.markUiStateDirty(); } c(juce::var());
+            })
+
         .withNativeFunction("clearTrack", [this](const auto& args, auto completion)
             {
                 if (args.size() == 2) audioProcessor.clearTrackNative((int)args[0], (int)args[1], false);
@@ -294,11 +290,7 @@ void MiniLAB3StepSequencerAudioProcessorEditor::pushUiDiffEvents()
             payload->setProperty("patternIndex", diff.patternIndex);
             payload->setProperty("trackIndex", diff.trackIndex);
             break;
-        case UiDiffEventType::TrackSequenceChanged:
-            payload->setProperty("type", "trackSequenceChanged");
-            payload->setProperty("trackIndex", diff.trackIndex);
-            payload->setProperty("sequence", juce::String(diff.text));
-            break;
+
         case UiDiffEventType::TrackLengthChanged:
             payload->setProperty("type", "trackLengthChanged");
             payload->setProperty("patternIndex", diff.patternIndex);

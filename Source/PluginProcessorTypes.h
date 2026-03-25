@@ -3,15 +3,13 @@
 #include <JuceHeader.h>
 #include <cstdint>
 
-struct ScheduledMidiEvent
-{
+struct ScheduledMidiEvent {
     double ppqTime = 0.0;
     juce::MidiMessage message;
     bool isActive = false;
 };
 
-struct StepData
-{
+struct StepData {
     bool isActive = false;
     float velocity = 0.8f;
     float probability = 1.0f;
@@ -19,58 +17,30 @@ struct StepData
     int repeats = 1;
     float shift = 0.5f;
     float swing = 0.0f;
+    int pitch = 0; // NEW: -24 to +24 Pitch Offset
 };
 
-enum class UiDiffEventType : uint8_t
-{
-    StepActive = 0,
-    StepParameter,
-    TrackState,
-    TrackMidiKey,
-    TrackMidiChannel,
-    ActivePatternChanged,
-    SelectedTrackChanged,
-    CurrentPageChanged,
-    ClearPage,
-    ClearTrack,
-    TrackSequenceChanged,
-    TrackLengthChanged
+enum class UiDiffEventType : uint8_t {
+    StepActive = 0, StepParameter, TrackState, TrackMidiKey, TrackMidiChannel,
+    ActivePatternChanged, SelectedTrackChanged, CurrentPageChanged, ClearPage, ClearTrack, TrackLengthChanged
 };
 
-enum class UiDiffParam : uint8_t
-{
-    Velocity = 0,
-    Gate,
-    Probability,
-    Shift,
-    Swing,
-    Repeats
+enum class UiDiffParam : uint8_t {
+    Velocity = 0, Gate, Probability, Shift, Swing, Repeats, Pitch
 };
 
-enum class UiDiffTrackState : uint8_t
-{
-    Mute = 0,
-    Solo
-};
+enum class UiDiffTrackState : uint8_t { Mute = 0, Solo };
 
-struct UiDiffEvent
-{
+struct UiDiffEvent {
     UiDiffEventType type = UiDiffEventType::StepActive;
-    int patternIndex = 0;
-    int trackIndex = 0;
-    int stepIndex = 0;
-    int value = 0;
-    int extraValue = 0;
-    float floatValue = 0.0f;
-    bool boolValue = false;
-    uint8_t field = 0;
-    char text[64] = { 0 };
+    int patternIndex = 0; int trackIndex = 0; int stepIndex = 0;
+    int value = 0; int extraValue = 0; float floatValue = 0.0f;
+    bool boolValue = false; uint8_t field = 0; char text[64] = { 0 };
 };
 
 class MiniLAB3StepSequencerAudioProcessor;
 
-class ControllerProfile
-{
+class ControllerProfile {
 public:
     virtual ~ControllerProfile() = default;
     virtual juce::String getDeviceNameSubstring() const = 0;
