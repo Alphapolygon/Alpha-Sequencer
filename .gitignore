@@ -1,4 +1,5 @@
 # C++ / CMake build folders
+/Builds/
 build/
 cmake-build-*/
 out/
