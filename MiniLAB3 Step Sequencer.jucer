@@ -24,6 +24,28 @@
       <FILE id="zZezrf" name="PluginEditor.cpp" compile="1" resource="0"
             file="Source/PluginEditor.cpp"/>
       <FILE id="yx7Wbh" name="PluginEditor.h" compile="0" resource="0" file="Source/PluginEditor.h"/>
+      <FILE id="LyCTLb" name="ArturiaMiniLab3Profile.cpp" compile="1" resource="0"
+            file="Source/ArturiaMiniLab3Profile.cpp"/>
+      <FILE id="gR5kiF" name="ArturiaMiniLab3Profile.h" compile="0" resource="0"
+            file="Source/ArturiaMiniLab3Profile.h"/>
+      <FILE id="JP3k3z" name="EditorUiBridge.cpp" compile="1" resource="0"
+            file="Source/EditorUiBridge.cpp"/>
+      <FILE id="TkKOAj" name="EditorUiBridge.h" compile="0" resource="0"
+            file="Source/EditorUiBridge.h"/>
+      <FILE id="IVl6S2" name="MidiControllerProfile.h" compile="0" resource="0"
+            file="Source/MidiControllerProfile.h"/>
+      <FILE id="SbKHfh" name="MidiControllerRegistry.cpp" compile="1" resource="0"
+            file="Source/MidiControllerRegistry.cpp"/>
+      <FILE id="NW0z5N" name="MidiControllerRegistry.h" compile="0" resource="0"
+            file="Source/MidiControllerRegistry.h"/>
+      <FILE id="UaCQs0" name="ParameterNames.h" compile="0" resource="0"
+            file="Source/ParameterNames.h"/>
+      <FILE id="rTYVnD" name="PluginProcessor_Mutations.cpp" compile="1"
+            resource="0" file="Source/PluginProcessor_Mutations.cpp"/>
+      <FILE id="DmrW7z" name="PluginProcessor_StateAccess.cpp" compile="1"
+            resource="0" file="Source/PluginProcessor_StateAccess.cpp"/>
+      <FILE id="zsBiLw" name="PluginProcessor_StateSerialization.cpp" compile="1"
+            resource="0" file="Source/PluginProcessor_StateSerialization.cpp"/>
     </GROUP>
     <GROUP id="{6DC98CE1-D936-C4FC-6B95-40FB02275663}" name="UI">
       <FILE id="nRCOgP" name="index.html" compile="0" resource="1" file="frontend/dist/index.html"/>

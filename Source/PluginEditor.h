@@ -1,12 +1,14 @@
 #pragma once
+
 #include <JuceHeader.h>
 #include "PluginProcessor.h"
+#include "EditorUiBridge.h"
 
 class MiniLAB3StepSequencerAudioProcessorEditor : public juce::AudioProcessorEditor,
                                                  public juce::Timer
 {
 public:
-    MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor&);
+    explicit MiniLAB3StepSequencerAudioProcessorEditor(MiniLAB3StepSequencerAudioProcessor&);
     ~MiniLAB3StepSequencerAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override {}
@@ -14,20 +16,12 @@ public:
     void timerCallback() override;
 
 private:
-    void pushPlaybackStateIfChanged();
-    void pushUiDiffEvents();
+    void applyUiScale(double scale);
 
     MiniLAB3StepSequencerAudioProcessor& audioProcessor;
+    std::atomic<bool> isUiConnected { false };
     juce::WebBrowserComponent webComponent;
-
-    double lastBpm = 0.0;
-    bool lastIsPlaying = false;
-    int lastStep = -1;
-
-    int lastDroppedNotes = -1;
-    int lastDroppedHWMsgs = -1;
-
-    std::atomic<bool> isUiConnected{ false };
+    EditorUiBridge uiBridge;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MiniLAB3StepSequencerAudioProcessorEditor)
 };

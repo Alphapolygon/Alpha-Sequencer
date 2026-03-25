@@ -7,14 +7,17 @@
 #include <cstring>
 #include "PluginProcessorTypes.h"
 #include "PluginProcessorHelpers.h"
+#include "MidiControllerProfile.h"
 #include "MelodicEngine.h"
 
 struct HardwareMsg { uint8_t d[3]; int len; };
 class MiniLAB3StepSequencerAudioProcessor;
 
 struct HardwareManager {
-    std::shared_ptr<juce::MidiOutput> output; std::shared_ptr<ControllerProfile> profile;
-    juce::SpinLock lock; std::atomic<MiniLAB3StepSequencerAudioProcessor*> owner{ nullptr };
+    std::shared_ptr<juce::MidiOutput> output;
+    std::shared_ptr<MidiControllerProfile> profile;
+    juce::SpinLock lock;
+    std::atomic<MiniLAB3StepSequencerAudioProcessor*> owner{ nullptr };
 };
 
 class MiniLAB3StepSequencerAudioProcessor : public juce::AudioProcessor, public juce::Timer {
@@ -50,9 +53,12 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    std::atomic<float>* masterVolParam = nullptr; std::atomic<float>* swingParam = nullptr;
-    std::atomic<float>* muteParams[MiniLAB3Seq::kNumTracks] = {}; std::atomic<float>* soloParams[MiniLAB3Seq::kNumTracks] = {};
-    std::atomic<float>* noteParams[MiniLAB3Seq::kNumTracks] = {}; std::atomic<float>* nudgeParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* masterVolParam = nullptr;
+    std::atomic<float>* swingParam = nullptr;
+    std::atomic<float>* muteParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* soloParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* noteParams[MiniLAB3Seq::kNumTracks] = {};
+    std::atomic<float>* nudgeParams[MiniLAB3Seq::kNumTracks] = {};
     std::atomic<bool> initialising{ true };
 
     using TrackSnapshot = StepData[MiniLAB3Seq::kNumSteps];
@@ -99,13 +105,17 @@ public:
     int lastChannelOnPerTrack[MiniLAB3Seq::kNumTracks];
     juce::String patternUUIDs[MiniLAB3Seq::kNumPatterns];
 
-    std::atomic<int> currentInstrument{ 0 }; std::atomic<int> currentPage{ 0 };
-    std::atomic<int> activeSection{ -1 }; std::atomic<int> global16thNote{ -1 };
-    std::atomic<int> activePatternIndex{ 0 }; std::atomic<int> themeIndex{ 0 };
+    std::atomic<int> currentInstrument{ 0 };
+    std::atomic<int> currentPage{ 0 };
+    std::atomic<int> activeSection{ -1 };
+    std::atomic<int> global16thNote{ -1 };
+    std::atomic<int> activePatternIndex{ 0 };
+    std::atomic<int> themeIndex{ 0 };
     std::atomic<int> visibleTracks{ 16 };
     std::atomic<int> footerTabIndex{ 16 };
     std::atomic<float> uiScale{ 1.0f };
-    std::atomic<double> currentBpm{ 120.0 }; std::atomic<bool> isPlaying{ false };
+    std::atomic<double> currentBpm{ 120.0 };
+    std::atomic<bool> isPlaying{ false };
     std::atomic<uint32_t> uiStateVersion{ 1 };
 
     void setStepDataFromVar(const juce::var& stateVar);
@@ -115,7 +125,9 @@ public:
     juce::var buildFullUiStateVarForEditor() const;
     void markUiStateDirty() noexcept;
 
-    std::atomic<int> droppedNotesCount{ 0 }; std::atomic<int> droppedHWMsgs{ 0 }; std::atomic<int> droppedUiDiffs{ 0 };
+    std::atomic<int> droppedNotesCount{ 0 };
+    std::atomic<int> droppedHWMsgs{ 0 };
+    std::atomic<int> droppedUiDiffs{ 0 };
 
 private:
     mutable juce::CriticalSection writerLock;
@@ -123,17 +135,20 @@ private:
     StepData sequencerTrackBuffers[2][MiniLAB3Seq::kNumPatterns][MiniLAB3Seq::kNumTracks][MiniLAB3Seq::kNumSteps]{};
     juce::SharedResourcePointer<HardwareManager> hardwareManager;
 
-    std::atomic<bool> isAttemptingConnection{ false }; std::atomic<int> ledRefreshCountdown{ 0 };
-    std::atomic<float> pendingMasterVolNormalized{ -1.0f }; std::atomic<float> pendingSwingNormalized{ -1.0f };
+    std::atomic<bool> isAttemptingConnection{ false };
+    std::atomic<int> ledRefreshCountdown{ 0 };
+    std::atomic<float> pendingMasterVolNormalized{ -1.0f };
+    std::atomic<float> pendingSwingNormalized{ -1.0f };
 
-    float minMicroTimingMs = -10.0f;
-    float maxMicroTimingMs = 10.0f;
 
     int lastProcessedStep = -1;
     static constexpr size_t MaxMidiEvents = 8192;
-    std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{}; size_t queuedEventCount = 0;
-    juce::AbstractFifo uiDiffFifo{ 2048 }; std::array<UiDiffEvent, 2048> uiDiffQueue{};
-    juce::AbstractFifo hwFifo{ 4096 }; std::array<HardwareMsg, 4096> hwQueue{};
+    std::array<ScheduledMidiEvent, MaxMidiEvents> eventQueue{};
+    size_t queuedEventCount = 0;
+    juce::AbstractFifo uiDiffFifo{ 2048 };
+    std::array<UiDiffEvent, 2048> uiDiffQueue{};
+    juce::AbstractFifo hwFifo{ 4096 };
+    std::array<HardwareMsg, 4096> hwQueue{};
     juce::Random playbackRandom;
 
     void scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg);

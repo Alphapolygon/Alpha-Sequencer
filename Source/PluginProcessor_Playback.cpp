@@ -3,13 +3,11 @@
 namespace {
     struct EventComparator {
         bool operator()(const ScheduledMidiEvent& a, const ScheduledMidiEvent& b) const {
-            // If events occur at the exact same time, prioritize NoteOff before NoteOn
             if (std::abs(a.ppqTime - b.ppqTime) < 1.0e-8) {
                 int priorityA = a.message.isNoteOff() ? 0 : 1;
                 int priorityB = b.message.isNoteOff() ? 0 : 1;
                 if (priorityA != priorityB) return priorityA > priorityB;
             }
-            // Otherwise, sort by time chronologically
             return a.ppqTime > b.ppqTime;
         }
     };
@@ -17,46 +15,81 @@ namespace {
 }
 
 void MiniLAB3StepSequencerAudioProcessor::prepareToPlay(double, int) {
-    global16thNote.store(-1, std::memory_order_release); lastProcessedStep = -1; queuedEventCount = 0; hwFifo.reset(); playbackRandom.setSeed(0x31337);
+    global16thNote.store(-1, std::memory_order_release);
+    lastProcessedStep = -1;
+    queuedEventCount = 0;
+    hwFifo.reset();
+    playbackRandom.setSeed(0x31337);
     for (auto& event : eventQueue) event = {};
-    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i) { lastNoteOnPerTrack[i] = -1; lastChannelOnPerTrack[i] = -1; }
+    for (int i = 0; i < MiniLAB3Seq::kNumTracks; ++i) {
+        lastNoteOnPerTrack[i] = -1;
+        lastChannelOnPerTrack[i] = -1;
+    }
 }
 
 void MiniLAB3StepSequencerAudioProcessor::scheduleMidiEvent(double ppqTime, const juce::MidiMessage& msg) {
     if (queuedEventCount >= MaxMidiEvents) return;
     eventQueue[queuedEventCount] = { ppqTime, msg, true };
-    ++queuedEventCount; std::push_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
+    ++queuedEventCount;
+    std::push_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
 }
 
 void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages) {
-    const int numSamples = buffer.getNumSamples(); juce::MidiBuffer incoming; incoming.swapWith(midiMessages);
+    const int numSamples = buffer.getNumSamples();
+    juce::MidiBuffer incoming;
+    incoming.swapWith(midiMessages);
+
+    std::shared_ptr<MidiControllerProfile> activeProfile;
+    {
+        const juce::SpinLock::ScopedLockType lock(hardwareManager->lock);
+        activeProfile = hardwareManager->profile;
+    }
 
     for (const auto metadata : incoming) {
         const auto msg = metadata.getMessage();
-        bool isHardwareControl = ((msg.isNoteOn() || msg.isNoteOff()) && msg.getNoteNumber() >= 36 && msg.getNoteNumber() <= 43) ||
-            (msg.isController() && (msg.getControllerNumber() == 1 || msg.getControllerNumber() == 7 || msg.getControllerNumber() == 11 || msg.getControllerNumber() == 114 || msg.getControllerNumber() == 115 || msg.getControllerNumber() == 74 || msg.getControllerNumber() == 71 || msg.getControllerNumber() == 76 || msg.getControllerNumber() == 77 || msg.getControllerNumber() == 93 || msg.getControllerNumber() == 18 || msg.getControllerNumber() == 19 || msg.getControllerNumber() == 16));
-        if (isHardwareControl && msg.getRawDataSize() <= 3 && isHardwareOwner()) {
+        const bool isHardwareControl = isHardwareOwner()
+            && activeProfile != nullptr
+            && activeProfile->claimsIncomingMessage(msg);
+
+        if (isHardwareControl && msg.getRawDataSize() <= 3) {
             auto writeHandle = hwFifo.write(1);
-            if (writeHandle.blockSize1 > 0) { auto& qMsg = hwQueue[writeHandle.startIndex1]; qMsg.len = msg.getRawDataSize(); std::memcpy(qMsg.d, msg.getRawData(), qMsg.len); }
+            if (writeHandle.blockSize1 > 0) {
+                auto& qMsg = hwQueue[writeHandle.startIndex1];
+                qMsg.len = msg.getRawDataSize();
+                std::memcpy(qMsg.d, msg.getRawData(), qMsg.len);
+            }
+        } else {
+            midiMessages.addEvent(msg, metadata.samplePosition);
         }
-        else midiMessages.addEvent(msg, metadata.samplePosition);
     }
+
     buffer.clear();
 
-    bool anySolo = false; for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) if (soloParams[t]->load() > 0.5f) { anySolo = true; break; }
+    bool anySolo = false;
+    for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
+        if (soloParams[t]->load() > 0.5f) {
+            anySolo = true;
+            break;
+        }
+    }
 
     if (auto* playHead = getPlayHead()) {
         if (auto position = playHead->getPosition()) {
-            const bool playing = position->getIsPlaying(); isPlaying.store(playing, std::memory_order_release);
+            const bool playing = position->getIsPlaying();
+            isPlaying.store(playing, std::memory_order_release);
+
             if (playing) {
                 const double ppqStart = position->getPpqPosition().orFallback(0.0);
-                const double bpm = position->getBpm().orFallback(120.0); currentBpm.store(bpm, std::memory_order_release);
+                const double bpm = position->getBpm().orFallback(120.0);
+                currentBpm.store(bpm, std::memory_order_release);
                 const double blockEndPpq = ppqStart + (numSamples * (bpm / (60.0 * getSampleRate())));
 
                 if (ppqStart < (lastProcessedStep * 0.03125)) {
-                    lastProcessedStep = -1; queuedEventCount = 0;
+                    lastProcessedStep = -1;
+                    queuedEventCount = 0;
                     for (int t = 0; t < MiniLAB3Seq::kNumTracks; ++t) {
-                        midiMessages.addEvent(juce::MidiMessage::allNotesOff(t + 1), 0); lastNoteOnPerTrack[t] = -1;
+                        midiMessages.addEvent(juce::MidiMessage::allNotesOff(t + 1), 0);
+                        lastNoteOnPerTrack[t] = -1;
                     }
                 }
 
@@ -66,7 +99,8 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                 for (int tick = firstTick; tick <= lastTick; ++tick) {
                     if (tick <= lastProcessedStep) continue;
-                    lastProcessedStep = tick; const double tickPpq = tick * 0.03125;
+                    lastProcessedStep = tick;
+                    const double tickPpq = tick * 0.03125;
                     global16thNote.store(static_cast<int>(std::floor(tickPpq * 4.0)), std::memory_order_release);
 
                     for (int track = 0; track < MiniLAB3Seq::kNumTracks; ++track) {
@@ -80,7 +114,6 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                         const int wrappedStep = stepIndex % trackLengths[pIdx][track].load(std::memory_order_acquire);
                         const auto& stepData = getActiveTrack(pIdx, track)[wrappedStep];
 
-                        // NON-DESTRUCTIVE JITTER MATH
                         float vJitter = MelodicEngine::applyJitter(stepData.velocity, trackRandomAmounts[pIdx][track][0].load(), playbackRandom);
                         float gJitter = MelodicEngine::applyJitter(stepData.gate, trackRandomAmounts[pIdx][track][1].load(), playbackRandom);
                         float pJitter = MelodicEngine::applyJitter(stepData.probability, trackRandomAmounts[pIdx][track][2].load(), playbackRandom);
@@ -90,10 +123,9 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
 
                         if (!stepData.isActive || playbackRandom.nextFloat() >= pJitter) continue;
 
-                        // MONOPHONIC CUTOFF
-                        if (lastNoteOnPerTrack[track] != -1) scheduleMidiEvent(tickPpq, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], lastNoteOnPerTrack[track], 0.0f));
+                        if (lastNoteOnPerTrack[track] != -1)
+                            scheduleMidiEvent(tickPpq, juce::MidiMessage::noteOff(lastChannelOnPerTrack[track], lastNoteOnPerTrack[track], 0.0f));
 
-                        // SCALE QUANTIZATION
                         const int rootNote = static_cast<int>(std::round(noteParams[track]->load()));
                         int note = MelodicEngine::getQuantizedMidiNote(rootNote, piJitter, trackScales[track].load(std::memory_order_relaxed));
 
@@ -115,7 +147,8 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                             scheduleMidiEvent(onPpq + (noteDurationPpq / repeats), juce::MidiMessage::noteOff(channel, note, 0.0f));
                         }
 
-                        lastNoteOnPerTrack[track] = note; lastChannelOnPerTrack[track] = channel;
+                        lastNoteOnPerTrack[track] = note;
+                        lastChannelOnPerTrack[track] = channel;
                     }
                 }
 
@@ -126,15 +159,18 @@ void MiniLAB3StepSequencerAudioProcessor::processBlock(juce::AudioBuffer<float>&
                     if (event.ppqTime >= ppqStart) {
                         int sampleOffset = static_cast<int>(((event.ppqTime - ppqStart) / blockLengthPpq) * numSamples);
                         midiMessages.addEvent(event.message, juce::jlimit(0, juce::jmax(0, numSamples - 1), sampleOffset));
+                    } else if (event.message.isNoteOff()) {
+                        midiMessages.addEvent(event.message, 0);
                     }
-                    else if (event.message.isNoteOff()) midiMessages.addEvent(event.message, 0);
                     std::pop_heap(eventQueue.begin(), eventQueue.begin() + queuedEventCount, EventComparator());
                     --queuedEventCount;
                 }
-            }
-            else if (lastProcessedStep != -1) {
-                global16thNote.store(-1, std::memory_order_release); lastProcessedStep = -1; queuedEventCount = 0;
-                for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel) midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
+            } else if (lastProcessedStep != -1) {
+                global16thNote.store(-1, std::memory_order_release);
+                lastProcessedStep = -1;
+                queuedEventCount = 0;
+                for (int channel = 1; channel <= MiniLAB3Seq::kNumTracks; ++channel)
+                    midiMessages.addEvent(juce::MidiMessage::allNotesOff(channel), 0);
             }
         }
     }
