@@ -6,6 +6,22 @@
               pluginVST3Category="External,Instrument">
   <MAINGROUP id="txOVfN" name="ALPHA Sequencer">
     <GROUP id="{FC383C5E-2580-0373-9652-C68EC60B6B75}" name="Source">
+      <FILE id="LORXhn" name="ArturiaKeyLabMk3Profile.cpp" compile="1" resource="0"
+            file="Source/ArturiaKeyLabMk3Profile.cpp"/>
+      <FILE id="qRutJN" name="ArturiaKeyLabMk3Profile.h" compile="0" resource="0"
+            file="Source/ArturiaKeyLabMk3Profile.h"/>
+      <FILE id="F0IxJI" name="ArturiaKeyLabEssentialMk3Profile.cpp" compile="1"
+            resource="0" file="Source/ArturiaKeyLabEssentialMk3Profile.cpp"/>
+      <FILE id="fTOmf3" name="ArturiaKeyLabEssentialMk3Profile.h" compile="0"
+            resource="0" file="Source/ArturiaKeyLabEssentialMk3Profile.h"/>
+      <FILE id="RS9Uxv" name="ArturiaMiniLabMk2Profile.cpp" compile="1" resource="0"
+            file="Source/ArturiaMiniLabMk2Profile.cpp"/>
+      <FILE id="RQSEdv" name="ArturiaMiniLabMk2Profile.h" compile="0" resource="0"
+            file="Source/ArturiaMiniLabMk2Profile.h"/>
+      <FILE id="SojBUr" name="GenericMidiDeviceProfile.cpp" compile="1" resource="0"
+            file="Source/GenericMidiDeviceProfile.cpp"/>
+      <FILE id="nSOeJV" name="GenericMidiDeviceProfile.h" compile="0" resource="0"
+            file="Source/GenericMidiDeviceProfile.h"/>
       <FILE id="ZL9wH6" name="MelodicEngine.h" compile="0" resource="0" file="Source/MelodicEngine.h"/>
       <FILE id="Afz84k" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
